@@ -1,0 +1,1 @@
+ALTER TABLE `Template` MODIFY `prompt` TEXT NOT NULL;

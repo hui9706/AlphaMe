@@ -87,7 +87,7 @@ model Template {
   slug        String       @unique
   nameVi      String
   nameZh      String
-  prompt      String
+  prompt      String   @db.Text
   coverUrl    String?
   coinCost    Int          @default(10)
   enabled     Boolean      @default(true)
