@@ -11,6 +11,10 @@ export class AssetsController {
     const asset = await this.storage.readById(id);
     if (!asset) throw new NotFoundException('Asset not found');
     response.setHeader('Content-Type', asset.asset.mimeType);
+    response.setHeader('Content-Length', String(asset.asset.byteSize));
+    response.setHeader('Content-Disposition', 'inline');
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     response.setHeader('Cache-Control', 'public, max-age=3600');
     createReadStream(asset.path).pipe(response);
   }
