@@ -3,10 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from './prisma.service';
 import { SecretsService } from './secrets.service';
+import { CoinService } from './coin.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly secrets: SecretsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly secrets: SecretsService, private readonly coin: CoinService) {}
 
   async login(username: string, password: string) {
     const admin = await this.prisma.adminUser.findUnique({ where: { username } });
@@ -20,6 +21,36 @@ export class AdminService {
   }
 
   users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, createdAt: true, coinAccount: true } }); }
+  async coinAccount(userId: string, limit = 100) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        zaloOpenId: true,
+        displayName: true,
+        coinAccount: {
+          select: {
+            available: true,
+            frozen: true,
+            updatedAt: true,
+            ledger: {
+              orderBy: { createdAt: 'desc' },
+              take: Math.min(Math.max(limit, 1), 200),
+              include: {
+                rewardRecord: { select: { id: true, type: true, status: true, amount: true, sourceType: true, sourceId: true, note: true, revokedAt: true, revokeReason: true } },
+                adminUser: { select: { id: true, username: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    return user;
+  }
+  adjustCoin(userId: string, amount: number, note: string, idempotencyKey: string, adminUserId: string) { return this.coin.adminAdjust(userId, amount, idempotencyKey, adminUserId, note); }
+  revokeReward(rewardId: string, adminUserId: string, reason: string) { return this.coin.revokeReward(rewardId, adminUserId, reason); }
+  rewards(userId?: string, status?: 'GRANTED' | 'REVOKED' | 'BLOCKED', limit = 100) { return this.prisma.rewardRecord.findMany({ where: { ...(userId ? { userId } : {}), ...(status ? { status } : {}) }, orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 200), include: { user: { select: { id: true, displayName: true, zaloOpenId: true } }, ledger: { select: { id: true, type: true, amount: true, adminUserId: true, note: true, createdAt: true } }, revokedByAdmin: { select: { id: true, username: true } } } }); }
   generations(limit = 50) { return this.prisma.generation.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), include: { user: { select: { displayName: true, zaloOpenId: true } }, template: { select: { slug: true, nameVi: true, nameZh: true } } } }); }
   templates() { return this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }); }
   createTemplate(data: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost?: number; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.coinCost ?? 10 } }); }

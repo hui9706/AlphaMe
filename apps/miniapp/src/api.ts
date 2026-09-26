@@ -24,6 +24,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null } };
 export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
 export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; coinCost: number; createdAt: string };
+export type PlazaWork = { id: string; publishedAt: string; user: { id: string; displayName?: string | null; avatarUrl?: string | null }; generation: { id: string; resultAssetUrl?: string | null; createdAt: string }; likes: number; liked: boolean };
+export type CoinLedgerEntry = { id: string; type: string; amount: number; availableAfter: number; frozenAfter: number; generationId?: string | null; note?: string | null; createdAt: string; rewardType?: string | null; rewardStatus?: string | null; rewardSourceType?: string | null; revokeReason?: string | null };
+export type CheckInStatus = { date: string; checkedIn: boolean; rewardAmount: number };
 
 export async function loginWithZalo(): Promise<Session> {
   const accessToken = await getAccessToken();
@@ -65,6 +68,15 @@ export function getMe() { return request<Session['user']>('/auth/me'); }
 
 export function getTemplates() { return request<Template[]>('/templates'); }
 export function getCoinBalance() { return request<{ available: number; frozen: number }>('/coins/balance'); }
+export function getCoinLedger(limit = 50) { return request<CoinLedgerEntry[]>(`/coins/ledger?limit=${limit}`); }
+export function getCheckInStatus() { return request<CheckInStatus>('/coins/check-in/status'); }
+export function checkIn() { return request<CheckInStatus & { alreadyCheckedIn: boolean }>('/coins/check-in', { method: 'POST' }); }
 export function getGenerations() { return request<Generation[]>('/generations'); }
+export function getPlazaWorks(limit = 30) { return request<PlazaWork[]>(`/plaza/works?limit=${limit}`); }
+export function publishPlazaWork(generationId: string) { return request<{ id: string }>('/plaza/works', { method: 'POST', body: JSON.stringify({ generationId }) }); }
+export function likePlazaWork(id: string) { return request<{ plazaWorkId: string; liked: boolean; likes: number }>('/plaza/works/' + id + '/like', { method: 'POST' }); }
+export function unlikePlazaWork(id: string) { return request<{ plazaWorkId: string; liked: boolean; likes: number }>('/plaza/works/' + id + '/like', { method: 'DELETE' }); }
+export function createShare(generationId: string) { return request<{ shareToken: string; generationId: string }>('/shares', { method: 'POST', body: JSON.stringify({ generationId }) }); }
+export function openShare(shareToken: string) { return request<{ opened: boolean; rewarded: boolean; alreadyOpened?: boolean }>('/shares/' + encodeURIComponent(shareToken) + '/open', { method: 'POST' }); }
 export function uploadImage(dataUrl: string) { return request<{ id: string; publicUrl: string }>('/uploads/image', { method: 'POST', body: JSON.stringify({ dataUrl }) }); }
 export function createGeneration(templateId: string, sourceAssetUrl: string) { return request<Generation>('/generations', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ templateId, sourceAssetUrl }) }); }

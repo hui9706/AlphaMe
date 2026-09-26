@@ -21,6 +21,29 @@ enum LedgerType {
   GENERATION_CHARGE
   REFUND
   ADMIN_ADJUSTMENT
+  REWARD
+  REWARD_REVERSAL
+}
+
+enum RewardType {
+  DAILY_CHECK_IN
+  SHARE_OPEN
+  PLAZA_LIKE
+  ADMIN_ADJUSTMENT
+  ADMIN_REVERSAL
+}
+
+enum RewardStatus {
+  GRANTED
+  REVOKED
+  BLOCKED
+}
+
+enum RiskStatus {
+  OPEN
+  REVIEWED
+  CLEARED
+  BLOCKED
 }
 
 enum ApiKeyStatus {
@@ -41,6 +64,13 @@ model User {
   coinAccount CoinAccount?
   generations Generation[]
   assets      Asset[]
+  dailyCheckIns DailyCheckIn[]
+  plazaWorks  PlazaWork[]
+  plazaLikes  PlazaLike[]
+  sharesSent  ShareAttribution[] @relation("ShareSender")
+  sharesOpened ShareAttribution[] @relation("ShareFriend")
+  rewards     RewardRecord[]
+  riskEvents  RewardRiskEvent[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -52,6 +82,9 @@ model AdminUser {
   role         String    @default("operator")
   enabled      Boolean   @default(true)
   lastLoginAt  DateTime?
+  coinLedgerActions CoinLedger[] @relation("CoinLedgerAdmin")
+  rewardReversals RewardRecord[] @relation("RewardRevokedBy")
+  riskReviews RewardRiskEvent[] @relation("RiskReviewedBy")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
@@ -76,12 +109,126 @@ model CoinLedger {
   frozenAfter    Int
   idempotencyKey String      @unique
   generationId   String?
+  adminUserId    String?
+  rewardRecordId String?     @unique
   note           String?
   account        CoinAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   generation     Generation? @relation(fields: [generationId], references: [id])
+  adminUser      AdminUser? @relation("CoinLedgerAdmin", fields: [adminUserId], references: [id], onDelete: SetNull)
+  rewardRecord   RewardRecord? @relation(fields: [rewardRecordId], references: [id], onDelete: SetNull)
   createdAt      DateTime    @default(now())
 
   @@index([accountId, createdAt])
+  @@index([adminUserId, createdAt])
+  @@index([rewardRecordId])
+}
+
+model DailyCheckIn {
+  id          String   @id @default(cuid())
+  userId      String
+  checkInDate DateTime @db.Date
+  reward      RewardRecord?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, checkInDate])
+  @@index([checkInDate])
+}
+
+model PlazaWork {
+  id          String      @id @default(cuid())
+  generationId String     @unique
+  userId      String
+  publishedAt DateTime    @default(now())
+  generation  Generation  @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes      PlazaLike[]
+  rewards    RewardRecord[]
+
+  @@index([userId, publishedAt])
+  @@index([publishedAt])
+}
+
+model PlazaLike {
+  id          String   @id @default(cuid())
+  plazaWorkId String
+  userId      String
+  plazaWork   PlazaWork @relation(fields: [plazaWorkId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward      RewardRecord?
+  createdAt   DateTime @default(now())
+
+  @@unique([plazaWorkId, userId])
+  @@index([userId, createdAt])
+}
+
+model ShareAttribution {
+  id          String   @id @default(cuid())
+  shareToken  String   @unique
+  generationId String
+  sharerId    String
+  friendId    String?
+  openedAt    DateTime?
+  reward      RewardRecord?
+  generation  Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  sharer      User     @relation("ShareSender", fields: [sharerId], references: [id], onDelete: Cascade)
+  friend      User?    @relation("ShareFriend", fields: [friendId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([generationId, sharerId])
+  @@index([friendId, openedAt])
+  @@unique([generationId, sharerId, friendId])
+}
+
+model RewardRecord {
+  id             String       @id @default(cuid())
+  userId         String
+  type           RewardType
+  status         RewardStatus @default(GRANTED)
+  amount         Int
+  idempotencyKey String       @unique
+  sourceType     String
+  sourceId       String
+  note           String?
+  revokedAt      DateTime?
+  revokedByAdminId String?
+  revokeReason   String?
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger         CoinLedger?
+  dailyCheckIn   DailyCheckIn? @relation(fields: [dailyCheckInId], references: [id], onDelete: SetNull)
+  dailyCheckInId String?      @unique
+  plazaLike      PlazaLike?   @relation(fields: [plazaLikeId], references: [id], onDelete: SetNull)
+  plazaLikeId    String?      @unique
+  plazaWork      PlazaWork?   @relation(fields: [plazaWorkId], references: [id], onDelete: SetNull)
+  plazaWorkId    String?
+  share          ShareAttribution? @relation(fields: [shareId], references: [id], onDelete: SetNull)
+  shareId        String?      @unique
+  revokedByAdmin AdminUser?   @relation("RewardRevokedBy", fields: [revokedByAdminId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, status, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([plazaWorkId])
+}
+
+model RewardRiskEvent {
+  id            String     @id @default(cuid())
+  userId        String
+  type          String
+  status        RiskStatus @default(OPEN)
+  score         Int        @default(0)
+  sourceType    String?
+  sourceId      String?
+  detail        String?
+  reviewedByAdminId String?
+  reviewedAt    DateTime?
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedByAdmin AdminUser? @relation("RiskReviewedBy", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+  createdAt     DateTime   @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model Template {
@@ -113,6 +260,8 @@ model Generation {
   user           User             @relation(fields: [userId], references: [id], onDelete: Restrict)
   template       Template         @relation(fields: [templateId], references: [id], onDelete: Restrict)
   ledger         CoinLedger[]
+  plazaWork      PlazaWork?
+  shares         ShareAttribution[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
