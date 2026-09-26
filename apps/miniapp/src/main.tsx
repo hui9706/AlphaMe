@@ -22,10 +22,10 @@ function App() {
   const [selectedStyleId, setSelectedStyleId] = useState('');
   const t = copy[lang];
   useEffect(() => {
-    const sessionReady = isRealAuthEnabled() ? loginWithZalo() : Promise.resolve();
-    void sessionReady.then(() => getTemplates()).then((templates) => {
+    void getTemplates().then((templates) => {
       if (templates.length > 0) { setStyles(templates.map((template: Template, index) => ({ id: template.id, name: template.nameVi, zh: template.nameZh, meta: `AI · ${template.coinCost} Coin`, tone: ['cyan', 'violet', 'pink'][index % 3], icon: ['✦', '◌', '◆'][index % 3], coverUrl: template.coverUrl }))); setSelectedStyleId(templates[0].id); }
     }).catch(() => setAuthError(true));
+    if (isRealAuthEnabled()) void loginWithZalo().catch(() => setAuthError(true));
   }, []);
   return <main className="phone-shell">
     <section className="app-canvas">
