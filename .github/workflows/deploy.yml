@@ -9,8 +9,8 @@ env:
   SERVER_HOST: 45.207.219.45
   SERVER_USER: root
   SERVER_PORT: 9706
-  REMOTE_DIR: /www/alphame
-  ADMIN_ROOT: /www/alphame/apps/admin/dist
+  REMOTE_DIR: /www1/alphame
+  ADMIN_ROOT: /www1/alphame/apps/admin/dist
   PM2_APP_NAME: alphame-api
 
 concurrency:
