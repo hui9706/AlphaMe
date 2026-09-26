@@ -12,6 +12,43 @@ button { -webkit-tap-highlight-color: transparent; }
 .auth-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .auth-spinner { width: 28px; height: 28px; margin: 6px auto 0; border: 3px solid rgba(23,26,45,.12); border-top-color: var(--cyan); border-radius: 50%; animation: auth-spin .8s linear infinite; }
 .auth-card > p { margin: -10px 0 0; text-align: center; color: var(--muted); font-size: 13px; }
+.auth-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 10px; letter-spacing: .1em; white-space: nowrap; }
+.auth-divider:before, .auth-divider:after { content: ''; height: 1px; flex: 1; background: var(--line); }
+.auth-form { display: grid; gap: 14px; }
+.auth-form label { display: grid; gap: 7px; color: var(--ink); font-size: 12px; font-weight: 600; }
+.auth-form input { width: 100%; height: 46px; padding: 0 13px; border: 1px solid var(--line); border-radius: 13px; outline: none; background: var(--canvas); color: var(--ink); font-size: 14px; }
+.auth-form input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,185,214,.1); }
+.auth-form .auth-error { margin: 0; }
+.account-submit { min-height: 48px; border: 0; border-radius: 999px; background: var(--cyan); color: #07323a; font-weight: 700; cursor: pointer; }
+.auth-mode-toggle { align-self: center; border: 0; background: transparent; color: #16869a; font-size: 12px; font-weight: 600; cursor: pointer; }
+.personal-view { padding-top: 30px; }
+.personal-view .create-heading { padding: 20px 0 26px; }
+.personal-view .create-heading h1 { margin-top: 12px; }
+.account-profile { display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); }
+.account-avatar { width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: 18px; background: #e0f2f3; color: #147d8c; font: 700 20px 'Space Grotesk', sans-serif; }
+.account-avatar .profile-icon { transform: scale(1.12); }
+.account-identity { display: grid; gap: 5px; min-width: 0; }
+.account-identity strong { overflow: hidden; color: var(--ink); font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.account-identity > span { color: var(--muted); font-size: 11px; }
+.account-state { flex: none; margin-left: auto; padding: 6px 9px; border-radius: 999px; background: var(--surface-strong); color: var(--muted); font-size: 10px; font-weight: 700; }
+.account-state.online { background: rgba(0,185,214,.11); color: #16869a; }
+.account-summary { display: grid; grid-template-columns: 1fr 1fr; margin: 14px 0 18px; padding: 17px 16px; border: 1px solid var(--line); border-radius: 20px; background: #fffdfa; }
+.account-summary > div { display: grid; align-content: center; gap: 9px; min-width: 0; }
+.account-summary > div + div { padding-left: 16px; border-left: 1px solid var(--line); }
+.account-summary span { color: var(--muted); font-size: 11px; }
+.account-summary strong { display: flex; align-items: center; gap: 7px; color: var(--ink); font: 700 22px 'Space Grotesk', sans-serif; }
+.account-summary strong i { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; background: var(--yellow); color: white; font: 700 12px 'DM Sans', sans-serif; }
+.account-summary .account-method { overflow-wrap: anywhere; font: 600 12px 'DM Sans', sans-serif; }
+.account-link-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 12px 0 20px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.account-link-row > span:first-child { display: grid; gap: 5px; }
+.account-link-row b { font-size: 13px; }
+.account-link-row small { color: var(--muted); font-size: 11px; }
+.account-chevron { color: var(--cyan); font-size: 21px; }
+.account-login { width: 100%; }
+.account-logout { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: #a4464c; font-weight: 700; cursor: pointer; }
+.account-link-row:focus-visible, .account-logout:focus-visible { outline: 3px solid rgba(0,185,214,.22); outline-offset: 2px; }
+.account-logout:hover { background: #fff1f1; }
+.account-login:focus-visible { outline: 3px solid rgba(0,185,214,.22); outline-offset: 2px; }
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 .app-canvas { width: min(100%, 520px); min-height: 100vh; padding: 24px 24px 112px; position: relative; overflow: hidden; background: var(--canvas); }
 .topbar { display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 3; }

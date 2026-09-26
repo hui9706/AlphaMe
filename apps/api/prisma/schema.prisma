@@ -32,7 +32,9 @@ enum ApiKeyStatus {
 
 model User {
   id          String       @id @default(cuid())
-  zaloOpenId  String       @unique
+  zaloOpenId  String?      @unique
+  username    String?      @unique
+  passwordHash String?
   displayName String?
   avatarUrl   String?
   language    String       @default("vi")

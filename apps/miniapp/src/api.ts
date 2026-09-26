@@ -17,11 +17,11 @@ export function resolveTemplateCoverUrl(coverUrl?: string, cacheKey?: string) {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getStoredAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers } });
-  if (!response.ok) throw new Error(`AlphaMe API ${response.status}`);
+  if (!response.ok) throw new Error(`API_${response.status}`);
   return response.json() as Promise<T>;
 }
 
-export type Session = { accessToken: string; user: { id: string; displayName?: string; avatarUrl?: string; coinAccount?: { available: number; frozen: number } } };
+export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null } };
 export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
 export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; coinCost: number; createdAt: string };
 
@@ -29,6 +29,15 @@ export async function loginWithZalo(): Promise<Session> {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error('ZALO_ACCESS_TOKEN_EMPTY');
   const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ accessToken }) });
+  setStoredAccessToken(session.accessToken);
+  return session;
+}
+
+export async function loginWithCredentials(username: string, password: string, register = false): Promise<Session> {
+  const session = await request<Session>(register ? '/auth/register' : '/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
   setStoredAccessToken(session.accessToken);
   return session;
 }

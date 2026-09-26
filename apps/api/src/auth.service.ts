@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from './prisma.service';
 import { ZaloIdentityProvider } from './zalo.identity';
 
@@ -14,12 +15,62 @@ export class AuthService {
       where: { zaloOpenId },
       update: { displayName: identity.displayName, avatarUrl: identity.avatarUrl },
       create: { zaloOpenId, displayName: identity.displayName, avatarUrl: identity.avatarUrl, coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:${zaloOpenId}` } } } } },
-      include: { coinAccount: true },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
     });
-    return { accessToken: await this.jwt.signAsync({ sub: user.id }), user };
+    return this.createSession(user);
+  }
+
+  async register(username: string, password: string) {
+    const normalizedUsername = username.toLowerCase();
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          username: normalizedUsername,
+          passwordHash: this.hashPassword(password),
+          displayName: normalizedUsername,
+          coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:account:${normalizedUsername}` } } } },
+        },
+        select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
+      });
+      return this.createSession(user);
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        throw new ConflictException('Username is already taken');
+      }
+      throw error;
+    }
+  }
+
+  async loginWithCredentials(username: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { username: username.toLowerCase() } });
+    if (!user?.passwordHash || !this.verifyPassword(password, user.passwordHash)) {
+      throw new UnauthorizedException('Invalid username or password');
+    }
+    const sessionUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
+    });
+    return this.createSession(sessionUser);
   }
 
   getMe(userId: string) {
-    return this.prisma.user.findUnique({ where: { id: userId }, include: { coinAccount: true } });
+    return this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true } });
+  }
+
+  private createSession(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; coinAccount: { available: number; frozen: number } | null }) {
+    return this.jwt.signAsync({ sub: user.id }).then((accessToken) => ({ accessToken, user }));
+  }
+
+  private hashPassword(password: string) {
+    const salt = randomBytes(16).toString('hex');
+    return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
+  }
+
+  private verifyPassword(password: string, stored: string) {
+    const [salt, hash] = stored.split(':');
+    if (!salt || !hash) return false;
+    const expected = Buffer.from(hash, 'hex');
+    const actual = scryptSync(password, salt, 64);
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
 }

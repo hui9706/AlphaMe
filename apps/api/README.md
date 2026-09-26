@@ -19,7 +19,9 @@ npm run dev:api
 接口前缀为 `/v1`：
 
 - `GET /v1/health`
-- `POST /v1/auth/zalo`：请求体为 `{ accessToken }`；生产环境由后端使用 `ZALO_APP_SECRET` 计算 `appsecret_proof`，并向 Zalo Graph API 校验用户身份；仅显式设置 `ZALO_AUTH_MODE=stub` 才启用本地开发桩
+- `POST /v1/auth/zalo`：请求体为 `{ accessToken }`；后端向 Zalo Graph API 校验 Mini App 用户身份。若 Zalo 因服务器出口 IP 限制个人信息接口，可改用账号密码登录
+- `POST /v1/auth/register`：请求体为 `{ username, password }`；用户名 3–24 位，仅限字母、数字、下划线和连字符，密码 8–128 位；注册即登录并发放新用户初始 Coin
+- `POST /v1/auth/login`：请求体为 `{ username, password }`；成功后返回与 Zalo 登录相同的 AlphaMe JWT 会话
 - `GET /v1/templates`
 - `POST /v1/uploads/image`：Bearer JWT + `{ dataUrl }`，目前限制 15MB 的 jpeg/png/webp
 - `POST /v1/generations`：要求 Bearer JWT、`Idempotency-Key`、`templateId` 和 `sourceAssetUrl`
