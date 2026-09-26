@@ -66,6 +66,8 @@ jobs:
             --exclude='apps/api/var/' \
             --exclude='apps/api/certs/' \
             --exclude='*.log' \
+            --exclude='.user.ini' \
+            --exclude='__MACOSX/' \
             ./ "${SERVER_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
 
       - name: Deploy on server
