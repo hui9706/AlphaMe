@@ -1,0 +1,7 @@
+{
+  "app": { "title": "AlphaMe", "headerTitle": "AlphaMe", "headerColor": "#080a42", "headerTextColor": "white" },
+  "listCSS": [],
+  "listSyncJS": [],
+  "listAsyncJS": [],
+  "listAssets": ["alphame-logo.png", "brand.svg"]
+}

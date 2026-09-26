@@ -1,0 +1,70 @@
+name: Deploy AlphaMe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  SERVER_HOST: 45.207.219.45
+  SERVER_USER: root
+  SERVER_PORT: 9706
+  REMOTE_DIR: /www/www1/alphame
+  ADMIN_ROOT: /www/www1/alphame/apps/admin/dist
+  PM2_APP_NAME: alphame-api
+
+concurrency:
+  group: alphame-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and verify locally
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Add server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${SERVER_PORT}" -H "${SERVER_HOST}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync project to server
+        run: |
+          rsync -az --delete \
+            -e "ssh -p ${SERVER_PORT}" \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='apps/api/.env' \
+            --exclude='apps/admin/.env' \
+            --exclude='apps/miniapp/.env' \
+            --exclude='apps/api/var/' \
+            --exclude='apps/api/certs/' \
+            --exclude='*.log' \
+            ./ "${SERVER_USER}@${SERVER_HOST}:${REMOTE_DIR}/"
+
+      - name: Deploy on server
+        run: |
+          ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
+            "REMOTE_DIR='${REMOTE_DIR}' ADMIN_ROOT='${ADMIN_ROOT}' PM2_APP_NAME='${PM2_APP_NAME}' GITHUB_SHA='${GITHUB_SHA}' bash -s" \
+            < deploy/remote-deploy.sh

@@ -1,0 +1,33 @@
+services:
+  mysql:
+    image: mysql:5.7.44
+    environment:
+      MYSQL_DATABASE: alphame
+      MYSQL_USER: alphame
+      MYSQL_PASSWORD: alphame
+      MYSQL_ROOT_PASSWORD: alphame-root
+    ports:
+      - "3306:3306"
+    volumes:
+      - alphame-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - alphame-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  alphame-mysql:
+  alphame-redis:

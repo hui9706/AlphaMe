@@ -1,0 +1,14 @@
+node_modules/
+dist/
+www/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+var/
+apps/api/var/
+apps/api/uploads/
+apps/api/certs/
+*.log
+*.zip
+.DS_Store
