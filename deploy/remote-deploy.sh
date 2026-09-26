@@ -3,6 +3,7 @@ set -euo pipefail
 
 : "${REMOTE_DIR:?REMOTE_DIR is required}"
 : "${ADMIN_ROOT:?ADMIN_ROOT is required}"
+: "${ADMIN_API_BASE_URL:?ADMIN_API_BASE_URL is required}"
 : "${PM2_APP_NAME:?PM2_APP_NAME is required}"
 
 cd "${REMOTE_DIR}"
@@ -15,6 +16,12 @@ fi
 export PATH="$PATH:/usr/local/bin:/usr/local/sbin:/root/.npm-global/bin"
 command -v npm >/dev/null 2>&1 || { echo "npm is not installed or not in PATH" >&2; exit 1; }
 command -v pm2 >/dev/null 2>&1 || { echo "pm2 is not installed or not in PATH" >&2; exit 1; }
+
+if [[ -f apps/admin/.env ]] && grep -q '^VITE_ADMIN_API_BASE_URL=' apps/admin/.env; then
+  sed -i "s|^VITE_ADMIN_API_BASE_URL=.*|VITE_ADMIN_API_BASE_URL=${ADMIN_API_BASE_URL}|" apps/admin/.env
+else
+  printf 'VITE_ADMIN_API_BASE_URL=%s\n' "${ADMIN_API_BASE_URL}" > apps/admin/.env
+fi
 
 npm ci
 npm --workspace apps/api run prisma:generate

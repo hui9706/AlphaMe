@@ -11,6 +11,7 @@ env:
   SERVER_PORT: 9706
   REMOTE_DIR: /www1/alphame
   ADMIN_ROOT: /www1/alphame/apps/admin/dist
+  ADMIN_API_BASE_URL: https://pic.alphavn.tech/v1
   PM2_APP_NAME: alphame-api
 
 concurrency:
@@ -73,5 +74,5 @@ jobs:
       - name: Deploy on server
         run: |
           ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
-            "REMOTE_DIR='${REMOTE_DIR}' ADMIN_ROOT='${ADMIN_ROOT}' PM2_APP_NAME='${PM2_APP_NAME}' GITHUB_SHA='${GITHUB_SHA}' bash -s" \
+            "REMOTE_DIR='${REMOTE_DIR}' ADMIN_ROOT='${ADMIN_ROOT}' ADMIN_API_BASE_URL='${ADMIN_API_BASE_URL}' PM2_APP_NAME='${PM2_APP_NAME}' GITHUB_SHA='${GITHUB_SHA}' bash -s" \
             < deploy/remote-deploy.sh
