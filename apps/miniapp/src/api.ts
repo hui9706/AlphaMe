@@ -1,6 +1,6 @@
 import { getAuthCode } from 'zmp-sdk';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://pic.alphavn.tech/v1';
 const TOKEN_KEY = 'alphame_access_token';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

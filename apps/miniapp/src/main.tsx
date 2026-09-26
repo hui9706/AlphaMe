@@ -18,13 +18,13 @@ function App() {
   const [lang, setLang] = useState<Lang>('vi');
   const [active, setActive] = useState('home');
   const [authError, setAuthError] = useState(false);
-  const [styles, setStyles] = useState(defaultStyles);
-  const [selectedStyleId, setSelectedStyleId] = useState(defaultStyles[0].id);
+  const [styles, setStyles] = useState<typeof defaultStyles>([]);
+  const [selectedStyleId, setSelectedStyleId] = useState('');
   const t = copy[lang];
   useEffect(() => {
-    if (!isRealAuthEnabled()) return;
-    void loginWithZalo().then(() => getTemplates()).then((templates) => {
-      if (templates.length > 0) setStyles(templates.map((template: Template, index) => ({ id: template.id, name: template.nameVi, zh: template.nameZh, meta: `AI · ${template.coinCost} Coin`, tone: ['cyan', 'violet', 'pink'][index % 3], icon: ['✦', '◌', '◆'][index % 3], coverUrl: template.coverUrl })));
+    const sessionReady = isRealAuthEnabled() ? loginWithZalo() : Promise.resolve();
+    void sessionReady.then(() => getTemplates()).then((templates) => {
+      if (templates.length > 0) { setStyles(templates.map((template: Template, index) => ({ id: template.id, name: template.nameVi, zh: template.nameZh, meta: `AI · ${template.coinCost} Coin`, tone: ['cyan', 'violet', 'pink'][index % 3], icon: ['✦', '◌', '◆'][index % 3], coverUrl: template.coverUrl }))); setSelectedStyleId(templates[0].id); }
     }).catch(() => setAuthError(true));
   }, []);
   return <main className="phone-shell">
@@ -33,7 +33,7 @@ function App() {
       {authError && <div role="alert" className="auth-error">Unable to sign in to AlphaMe. Please reopen the Mini App and try again.</div>}
       {active === 'home' ? <>
         <section className="hero"><div className="eyebrow">ALPHAME STUDIO <span>✦</span></div><h1>{t.title.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h1><p>{t.subtitle}</p><button className="primary-cta" onClick={() => setActive('styles')}>{t.create}<span>↗</span></button><div className="orb orb-a" /><div className="orb orb-b" /></section>
-        <section className="section-block"><div className="section-heading"><div><span className="kicker">01 / {t.explore}</span><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><div><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div><button className="circle-arrow">↗</button></div></article>)}</div></section>
+        <section className="section-block"><div className="section-heading"><div><span className="kicker">01 / {t.explore}</span><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><div><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div><button className="circle-arrow">↗</button></div></article>)}</div></section>
         <section className="social-strip"><div className="social-mark">◎</div><div><span className="kicker">02 / SOCIAL AI</span><h2>{t.friends}</h2><p>{lang === 'vi' ? 'Tạo nên một câu chuyện cùng người bạn.' : '和朋友一起，创造属于你们的故事。'}</p></div><span className="strip-arrow">↗</span></section>
         <section className="challenge-row"><div><span className="kicker">03 / DAILY</span><h2>{t.challenge}</h2></div><div className="challenge-badge">NEW<br /><strong>24H</strong></div></section>
       </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} /> : <section className="create-view"><div className="create-heading"><span className="kicker">ALPHAME</span><h1>{active === 'friends' ? t.friends : t.navMe}</h1><p>{lang === 'zh' ? '该模块将在下一阶段接入真实数据。' : 'Tính năng này sẽ được kết nối dữ liệu thật ở giai đoạn tiếp theo.'}</p></div></section>}

@@ -31,6 +31,7 @@ function Templates({ t }: { t: typeof copy.zh }) {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const load = () => api.getTemplates().then(setItems).catch((err) => setError(err.message));
   useEffect(() => { void load(); }, []);
@@ -51,6 +52,17 @@ function Templates({ t }: { t: typeof copy.zh }) {
       setForm((current) => ({ ...current, coverUrl: asset.publicUrl }));
     } catch (err) { setError(err instanceof Error ? err.message : '图片上传失败'); }
     finally { setCoverBusy(false); }
+  };
+  const moveTemplate = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= items.length || reordering) return;
+    const next = [...items];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    setReordering(true);
+    setError('');
+    try { await api.reorderTemplates(next.map((item) => item.id)); setItems(next); }
+    catch (err) { setError(err instanceof Error ? err.message : '排序保存失败'); }
+    finally { setReordering(false); }
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -86,7 +98,7 @@ function Templates({ t }: { t: typeof copy.zh }) {
     </section>}
     {error && <div className="admin-error">{error}</div>}
     <div className="list-toolbar"><div className="filter-tabs"><button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t.all} <b>{items.length}</b></button><button className={filter === 'enabled' ? 'active' : ''} onClick={() => setFilter('enabled')}>{t.enabled} <b>{items.filter((x) => x.enabled).length}</b></button><button className={filter === 'disabled' ? 'active' : ''} onClick={() => setFilter('disabled')}>{t.disabled} <b>{items.filter((x) => !x.enabled).length}</b></button></div><span className="list-count">{filtered.length} {t.records}</span></div>
-    <section className="panel data-list">{filtered.length ? filtered.map((item) => <div className="template-row" key={item.id}><div className="template-cover">{item.coverUrl ? <img src={item.coverUrl} /> : <span>✧</span>}</div><div className="template-main"><div><strong>{item.nameZh}</strong><span className="slug-chip">{item.slug}</span></div><small>{item.nameVi}</small><p><span>模板提示词</span> · {item.prompt.slice(0, 72)}{item.prompt.length > 72 ? '…' : ''}</p></div><div className="template-meta"><b>{item.coinCost} <small>Coin</small></b><span>{item.enabled ? t.active : t.paused}</span></div><div className="template-actions"><button className="edit-button" onClick={() => openEdit(item)}>{t.edit}</button><button className={`status-button ${item.enabled ? 'enabled' : 'disabled'}`} onClick={() => api.toggleTemplate(item.id, !item.enabled).then(load)}>{item.enabled ? t.pause : t.resume}</button></div></div>) : <EmptyState title={t.noTemplates} hint={t.noTemplatesHint} />}</section>
+    <section className="panel data-list">{filtered.length ? filtered.map((item) => { const index = items.findIndex((entry) => entry.id === item.id); return <div className="template-row" key={item.id}><div className="template-cover">{item.coverUrl ? <img src={item.coverUrl} /> : <span>✧</span>}</div><div className="template-main"><div><strong>{item.nameZh}</strong><span className="slug-chip">{item.slug}</span></div><small>{item.nameVi}</small><p><span>模板提示词</span> · {item.prompt.slice(0, 72)}{item.prompt.length > 72 ? '…' : ''}</p></div><div className="template-meta"><b>{item.coinCost} <small>Coin</small></b><span>排序 {index + 1} · {item.enabled ? t.active : t.paused}</span></div><div className="template-actions"><button className="sort-button" disabled={index === 0 || reordering} onClick={() => void moveTemplate(index, -1)}>↑</button><button className="sort-button" disabled={index === items.length - 1 || reordering} onClick={() => void moveTemplate(index, 1)}>↓</button><button className="edit-button" onClick={() => openEdit(item)}>{t.edit}</button><button className={`status-button ${item.enabled ? 'enabled' : 'disabled'}`} onClick={() => api.toggleTemplate(item.id, !item.enabled).then(load)}>{item.enabled ? t.pause : t.resume}</button></div></div>; }) : <EmptyState title={t.noTemplates} hint={t.noTemplatesHint} />}</section>
   </div>;
 }
 function Generations({ t }: { t: typeof copy.zh }) { const [items, setItems] = useState<AdminGeneration[]>([]); const [query, setQuery] = useState(''); useEffect(() => { void api.getGenerations().then(setItems); }, []); const filtered = useMemo(() => items.filter((item) => `${item.id} ${item.user.displayName ?? ''} ${item.template.nameZh}`.toLowerCase().includes(query.toLowerCase())), [items, query]); return <div className="content"><PageHeader kicker="AI PIPELINE" title={t.generations} hint={t.hint} /><div className="search-row"><div className="search-box">⌕<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${t.search} ${t.generations}`} /></div><span>{filtered.length} {t.records}</span></div><section className="panel data-list wide-list"><div className="table-head"><span>{t.user}</span><span>{t.template}</span><span>{t.created}</span><span>{t.costShort}</span><span>{t.status}</span></div>{filtered.map((item) => <div className="table-row" key={item.id}><div className="user-cell"><i>{(item.user.displayName || 'Z').slice(0, 1).toUpperCase()}</i><span><b>{item.user.displayName || 'Zalo User'}</b><small>{item.id.slice(0, 18)}…</small></span></div><span>{item.template.nameZh}<small>{item.template.nameVi}</small></span><span>{new Date(item.createdAt).toLocaleString()}</span><span>{item.coinCost} Coin</span><span className={`status ${item.status.toLowerCase()}`}>{statusLabel(item.status, t)}</span></div>)}{!filtered.length && <EmptyState title={t.noTasks} hint={t.noTasks} />}</section></div>; }

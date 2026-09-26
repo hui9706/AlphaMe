@@ -21,9 +21,12 @@ export class AdminService {
 
   users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, createdAt: true, coinAccount: true } }); }
   generations(limit = 50) { return this.prisma.generation.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), include: { user: { select: { displayName: true, zaloOpenId: true } }, template: { select: { slug: true, nameVi: true, nameZh: true } } } }); }
-  templates() { return this.prisma.template.findMany({ orderBy: { createdAt: 'asc' } }); }
+  templates() { return this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }); }
   createTemplate(data: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost?: number; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.coinCost ?? 10 } }); }
-  updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean }>) { return this.prisma.template.update({ where: { id }, data }); }
+  updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean; sortOrder: number }>) { return this.prisma.template.update({ where: { id }, data }); }
+  async reorderTemplates(templateIds: string[]) {
+    return this.prisma.$transaction(templateIds.map((id, index) => this.prisma.template.update({ where: { id }, data: { sortOrder: index } })));
+  }
   apiKeys() { return this.prisma.apiKey.findMany({ orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }], select: { id: true, label: true, priority: true, status: true, failureCount: true, lastUsedAt: true, pausedUntil: true, createdAt: true } }); }
   createApiKey(label: string, value: string, priority = 100) { return this.prisma.apiKey.create({ data: { label, encryptedValue: this.secrets.encrypt(value), priority }, select: { id: true, label: true, priority: true, status: true } }); }
   updateApiKey(id: string, data: { priority?: number; status?: 'ACTIVE' | 'PAUSED' }) { return this.prisma.apiKey.update({ where: { id }, data }); }

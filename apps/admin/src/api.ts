@@ -3,7 +3,7 @@ const TOKEN_KEY = 'alphame_admin_access_token';
 
 export type AdminSession = { accessToken: string; admin: { id: string; username: string; role: string } };
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
-export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; enabled: boolean };
+export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; sortOrder: number; enabled: boolean };
 export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; createdAt: string; user: { displayName?: string; zaloOpenId: string }; template: { slug: string; nameVi: string; nameZh: string } };
 export type AdminUser = { id: string; zaloOpenId: string; displayName?: string; avatarUrl?: string; language: string; createdAt: string; coinAccount?: { available: number; frozen: number } };
 export type AdminApiKey = { id: string; label: string; priority: number; status: string; failureCount: number; lastUsedAt?: string; pausedUntil?: string; createdAt: string };
@@ -28,6 +28,7 @@ export const getApiKeys = () => request<AdminApiKey[]>('/admin/api-keys');
 export const uploadTemplateCover = (dataUrl: string) => request<{ id: string; publicUrl: string }>('/admin/template-covers', { method: 'POST', body: JSON.stringify({ dataUrl }) });
 export const createTemplate = (body: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl?: string }) => request<AdminTemplate>('/admin/templates', { method: 'POST', body: JSON.stringify(body) });
 export const updateTemplate = (id: string, body: { nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl?: string }) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const reorderTemplates = (templateIds: string[]) => request<AdminTemplate[]>('/admin/templates/order', { method: 'PATCH', body: JSON.stringify({ templateIds }) });
 export const toggleTemplate = (id: string, enabled: boolean) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const createApiKey = (body: { label: string; value: string; priority: number }) => request<AdminApiKey>('/admin/api-keys', { method: 'POST', body: JSON.stringify(body) });
 export const updateApiKey = (id: string, status: 'ACTIVE' | 'PAUSED') => request<AdminApiKey>(`/admin/api-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });

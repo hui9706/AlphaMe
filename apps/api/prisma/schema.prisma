@@ -90,6 +90,7 @@ model Template {
   prompt      String   @db.Text
   coverUrl    String?
   coinCost    Int          @default(10)
+  sortOrder   Int          @default(0)
   enabled     Boolean      @default(true)
   generations Generation[]
   createdAt   DateTime     @default(now())
