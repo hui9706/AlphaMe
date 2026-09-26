@@ -8,6 +8,8 @@ export type AdminGeneration = { id: string; status: string; coinCost: number; so
 export type AdminUser = { id: string; zaloOpenId: string; displayName?: string; avatarUrl?: string; language: string; createdAt: string; coinAccount?: { available: number; frozen: number } };
 export type AdminApiKey = { id: string; label: string; priority: number; status: string; failureCount: number; lastUsedAt?: string; pausedUntil?: string; createdAt: string };
 export type AdminStorage = { provider: string; enabled: boolean; fallbackLocal: boolean; qiniuPrivate: boolean; qiniuUrlTtlSeconds: number; qiniuBucket?: string; qiniuRegion?: string; qiniuDomain?: string; qiniuAccessKey: boolean; qiniuSecretKey: boolean };
+export type AdminVolcengineConfig = { configured: boolean; region: string };
+export type AdminVolcengineUsage = { startDate: string; endDate: string; details: Array<{ Time: number; ObjectName: string; Usage: number; Unit: string; BillingType: string }>; totals: Record<string, number> };
 
 export function getAdminToken() { return sessionStorage.getItem(TOKEN_KEY); }
 export function clearAdminToken() { sessionStorage.removeItem(TOKEN_KEY); }
@@ -33,6 +35,10 @@ export const reorderTemplates = (templateIds: string[]) => request<AdminTemplate
 export const toggleTemplate = (id: string, enabled: boolean) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const createApiKey = (body: { label: string; value: string; priority: number }) => request<AdminApiKey>('/admin/api-keys', { method: 'POST', body: JSON.stringify(body) });
 export const updateApiKey = (id: string, status: 'ACTIVE' | 'PAUSED') => request<AdminApiKey>(`/admin/api-keys/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const getVolcengineConfig = () => request<AdminVolcengineConfig>('/admin/volcengine/config');
+export const updateVolcengineConfig = (body: { accessKey?: string; secretKey?: string; region: string }) => request<AdminVolcengineConfig>('/admin/volcengine/config', { method: 'PATCH', body: JSON.stringify(body) });
+export const testVolcengine = () => request<{ ok: boolean; message: string }>('/admin/volcengine/test', { method: 'POST' });
+export const getVolcengineUsage = (startDate: string, endDate: string) => request<AdminVolcengineUsage>(`/admin/volcengine/usage?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`);
 export const getStorage = () => request<AdminStorage>('/admin/storage');
 export const updateStorage = (body: Record<string, unknown>) => request<AdminStorage>('/admin/storage', { method: 'PATCH', body: JSON.stringify(body) });
 export const testStorage = (body: Record<string, unknown>) => request<{ ok: boolean; message: string }>('/admin/storage/test', { method: 'POST', body: JSON.stringify(body) });

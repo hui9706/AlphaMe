@@ -72,6 +72,10 @@ function App() {
     if (authState === 'authenticated') return;
     setShowLogin(true); setAuthState('unauthenticated'); setAuthError('');
   };
+  const refreshSession = async () => {
+    if (authState !== 'authenticated') return;
+    try { setSession(await getMe()); } catch { /* Keep the current session if a background refresh fails. */ }
+  };
   const logout = () => {
     clearAccessToken(); setSession(undefined); setAuthState('preview'); setShowLogin(false);
   };
@@ -85,7 +89,7 @@ function App() {
         <section className="section-block"><div className="section-heading"><div><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div></article>)}</div></section>
         <section className="social-strip"><div className="social-mark">◎</div><div><span className="kicker">02 / SOCIAL AI</span><h2>{t.friends}</h2><p>{lang === 'vi' ? 'Tạo nên một câu chuyện cùng người bạn.' : '和朋友一起，创造属于你们的故事。'}</p></div><span className="strip-arrow">→</span></section>
         <section className="challenge-row"><div><span className="kicker">03 / DAILY</span><h2>{t.challenge}</h2></div><div className="challenge-badge">NEW<br /><strong>24H</strong></div></section>
-      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} /> : active === 'me' ? <PersonalView lang={lang} user={session} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} /> : <section className="create-view"><div className="create-heading"><span className="kicker">ALPHAME</span><h1>{t.friends}</h1><p>{lang === 'zh' ? '好友功能将在下一阶段开放。' : 'Tính năng bạn bè sẽ sớm được mở.'}</p></div></section>}
+      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onGenerationCreated={() => void refreshSession()} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} /> : active === 'me' ? <PersonalView lang={lang} user={session} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} /> : <section className="create-view"><div className="create-heading"><span className="kicker">ALPHAME</span><h1>{t.friends}</h1><p>{lang === 'zh' ? '好友功能将在下一阶段开放。' : 'Tính năng bạn bè sẽ sớm được mở.'}</p></div></section>}
       <nav className="bottom-nav">{[["home", t.navHome, '⌂'], ['friends', t.navFriends, '◉'], ['works', t.navWorks, '▧'], ['me', t.navMe, '◎']].map(([id, label, icon]) => <button className={active === id ? 'active' : ''} onClick={() => setActive(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
     </section>
   </main>;
@@ -133,7 +137,7 @@ function WorksView({ lang }: { lang: Lang }) {
   const zh = lang === 'zh';
   const [items, setItems] = useState<Generation[]>([]);
   useEffect(() => { if (isRealAuthEnabled()) void getGenerations().then(setItems).catch(() => undefined); }, []);
-  return <section className="create-view"><div className="create-heading"><span className="kicker">MY WORKS</span><h1>{zh ? '我的作品' : 'Tác phẩm của tôi'}</h1><p>{zh ? '生成完成后，结果会保存在这里。' : 'Kết quả sau khi tạo sẽ được lưu ở đây.'}</p></div><div className="style-grid">{items.map((item) => <article className="style-card cyan" key={item.id}>{item.resultAssetUrl ? <img src={item.resultAssetUrl} alt="" /> : <div className="style-art"><span>{item.status === 'PROCESSING' || item.status === 'QUEUED' ? '…' : '!'}</span><div className="art-glow" /></div>}<div className="style-info"><div><h3>{item.status}</h3><p>{new Date(item.createdAt).toLocaleString()}</p></div></div></article>)}</div>{items.length === 0 && <p className="auth-error">{zh ? '暂无作品。' : 'Chưa có tác phẩm.'}</p>}</section>;
+  return <section className="create-view"><div className="create-heading"><span className="kicker">MY WORKS</span><h1>{zh ? '我的作品' : 'Tác phẩm của tôi'}</h1><p>{zh ? '生成完成后，结果会保存在这里。' : 'Kết quả sau khi tạo sẽ được lưu ở đây.'}</p></div><div className="works-grid">{items.map((item) => <article className="work-card" key={item.id}>{item.resultAssetUrl ? <div className="work-image-frame"><img className="work-image" src={item.resultAssetUrl} alt="" /></div> : <div className="style-art work-placeholder"><span>{item.status === 'PROCESSING' || item.status === 'QUEUED' ? '…' : '!'}</span><div className="art-glow" /></div>}<div className="style-info"><div><h3>{item.status}</h3><p>{new Date(item.createdAt).toLocaleString()}</p></div></div></article>)}</div>{items.length === 0 && <p className="auth-error">{zh ? '暂无作品。' : 'Chưa có tác phẩm.'}</p>}</section>;
 }
 
 function StylePicker({ lang, styles, onBack, onSelect }: { lang: Lang; styles: typeof defaultStyles; onBack: () => void; onSelect: (styleId: string) => void }) {
@@ -141,7 +145,7 @@ function StylePicker({ lang, styles, onBack, onSelect }: { lang: Lang; styles: t
   return <section className="create-view style-picker"><button className="back-button" onClick={onBack}>← {zh ? '返回首页' : 'Về trang chủ'}</button><div className="create-heading"><h1>{zh ? '先选一个风格' : 'Chọn một phong cách'}</h1><p>{zh ? '选择你想要的 AI 版本，下一步再上传照片。' : 'Chọn phiên bản AI bạn muốn, sau đó tải ảnh lên.'}</p></div><div className="picker-grid">{styles.map(style => <button className={`picker-card ${style.tone}`} key={style.id} onClick={() => onSelect(style.id)}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="picker-info"><h3>{zh ? style.zh : style.name}</h3><p>{style.meta}</p></div></button>)}</div></section>;
 }
 
-function CreateView({ lang, templateId, authenticated, onRequireLogin, onBack }: { lang: Lang; templateId: string; authenticated: boolean; onRequireLogin: () => void; onBack: () => void }) {
+function CreateView({ lang, templateId, authenticated, onRequireLogin, onGenerationCreated, onBack }: { lang: Lang; templateId: string; authenticated: boolean; onRequireLogin: () => void; onGenerationCreated: () => void; onBack: () => void }) {
   const zh = lang === 'zh';
   const [dataUrl, setDataUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -159,6 +163,7 @@ function CreateView({ lang, templateId, authenticated, onRequireLogin, onBack }:
     try {
       const asset = await uploadImage(dataUrl);
       await createGeneration(templateId, asset.publicUrl);
+      onGenerationCreated();
       setError(zh ? '任务已提交，请稍后在作品中查看。' : 'Đã gửi tác vụ, hãy xem kết quả trong Tác phẩm.');
     } catch { setError(zh ? '生成暂时不可用，请稍后重试。' : 'Tạo ảnh tạm thời chưa khả dụng, hãy thử lại sau.'); }
     finally { setBusy(false); }

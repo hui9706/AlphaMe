@@ -85,6 +85,14 @@ button { -webkit-tap-highlight-color: transparent; }
 .text-button span { color: var(--cyan); margin-left: 7px; font-size: 18px; }
 .style-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .style-card { min-width: 0; cursor: pointer; }
+.works-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+.work-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 5px 16px rgba(23,26,45,.035); }
+.work-image-frame { width: 100%; aspect-ratio: 4 / 5; overflow: hidden; background: #f0efec; }
+.work-image { width: 100%; height: 100%; display: block; object-fit: cover; }
+.work-placeholder { width: 100%; height: 100%; min-height: 0; border-radius: 0; }
+.work-card .style-info { min-height: 55px; padding: 10px 12px 11px; }
+.work-card .style-info h3 { font-size: 11px; letter-spacing: .04em; }
+.work-card .style-info p { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; white-space: nowrap; }
 .style-art { height: 188px; border-radius: 22px; position: relative; overflow: hidden; display: grid; place-items: center; background: var(--surface-strong); }
 .style-art:before, .style-art:after { content: ''; position: absolute; width: 150px; height: 210px; border-radius: 48% 52% 45% 55%; transform: rotate(34deg); background: linear-gradient(145deg,rgba(255,255,255,.75),rgba(255,255,255,0) 53%); opacity: .65; }
 .style-art:after { width: 90px; height: 150px; transform: rotate(-46deg) translate(18px,10px); background: linear-gradient(145deg,rgba(255,255,255,.5),transparent 65%); }
@@ -135,4 +143,4 @@ button { -webkit-tap-highlight-color: transparent; }
 .picker-info p { color: var(--muted); font-size: 11px; margin: 0; }
 .picker-info .circle-arrow { display: grid; place-items: center; bottom: 0; }
 .auth-error { margin: 12px 0; padding: 12px 14px; border: 1px solid rgba(215,76,87,.2); border-radius: 14px; background: #fff1f1; color: #b13e4b; font-size: 12px; }
-@media (max-width:390px) { .app-canvas { padding-left: 18px; padding-right: 18px; } .hero { grid-template-columns: minmax(0,1fr) 132px; gap: 12px; padding-top: 44px; } .hero-card { height: 260px; border-radius: 24px; } .hero h1 { font-size: 24px; } .style-art { height: 156px; } .style-info p { font-size: 9px; } .picker-grid { gap: 12px 8px; } .picker-card { padding: 5px 5px 8px; border-radius: 15px; } .picker-card .style-art { border-radius: 11px; } .picker-info { padding-top: 8px; } .picker-info h3 { font-size: 12px; } }
+@media (max-width:390px) { .app-canvas { padding-left: 18px; padding-right: 18px; } .hero { grid-template-columns: minmax(0,1fr) 132px; gap: 12px; padding-top: 44px; } .hero-card { height: 260px; border-radius: 24px; } .hero h1 { font-size: 24px; } .style-art { height: 156px; } .style-info p { font-size: 9px; } .works-grid { gap: 14px 9px; } .work-card { border-radius: 15px; } .work-card .style-info { padding: 9px 10px 10px; } .picker-grid { gap: 12px 8px; } .picker-card { padding: 5px 5px 8px; border-radius: 15px; } .picker-card .style-art { border-radius: 11px; } .picker-info { padding-top: 8px; } .picker-info h3 { font-size: 12px; } }

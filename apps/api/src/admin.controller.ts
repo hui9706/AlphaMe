@@ -3,12 +3,14 @@ import { ArrayNotEmpty, IsArray, IsBoolean, IsInt, IsOptional, IsString, Min, Mi
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { StorageService } from './storage.service';
+import { VolcengineService } from './volcengine.service';
 
 class LoginDto { @IsString() @MinLength(1) username!: string; @IsString() @MinLength(8) password!: string; }
 class TemplateDto { @IsString() @MinLength(1) slug!: string; @IsString() @MinLength(1) nameVi!: string; @IsString() @MinLength(1) nameZh!: string; @IsString() @MinLength(1) prompt!: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; }
 class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional() @IsString() nameZh?: string; @IsOptional() @IsString() prompt?: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; @IsOptional() @IsBoolean() enabled?: boolean; }
 class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true }) templateIds!: string[]; }
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
+class VolcengineConfigDto { @IsOptional() @IsString() accessKey?: string; @IsOptional() @IsString() secretKey?: string; @IsOptional() @IsString() region?: string; }
 class TemplateCoverUploadDto { @IsString() @MinLength(20) dataUrl!: string; }
 class StorageConfigDto {
   @IsString() provider!: string;
@@ -30,7 +32,7 @@ class StorageTestDto {
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService, private readonly storage: StorageService) {}
+  constructor(private readonly admin: AdminService, private readonly storage: StorageService, private readonly volcengine: VolcengineService) {}
 
   @Post('auth/login') login(@Body() body: LoginDto) { return this.admin.login(body.username, body.password); }
 
@@ -45,6 +47,14 @@ export class AdminController {
   @Get('api-keys') @UseGuards(AdminGuard) apiKeys() { return this.admin.apiKeys(); }
   @Post('api-keys') @UseGuards(AdminGuard) createApiKey(@Body() body: ApiKeyDto) { return this.admin.createApiKey(body.label, body.value, body.priority); }
   @Patch('api-keys/:id') @UseGuards(AdminGuard) updateApiKey(@Param('id') id: string, @Body() body: { priority?: number; status?: 'ACTIVE' | 'PAUSED' }) { return this.admin.updateApiKey(id, body); }
+  @Get('volcengine/config') @UseGuards(AdminGuard) volcengineConfig() { return this.volcengine.config(); }
+  @Patch('volcengine/config') @UseGuards(AdminGuard) updateVolcengineConfig(@Body() body: VolcengineConfigDto) { return this.volcengine.saveConfig(body); }
+  @Post('volcengine/test') @UseGuards(AdminGuard) testVolcengine() { return this.volcengine.testConnection(); }
+  @Get('volcengine/usage') @UseGuards(AdminGuard) volcengineUsage(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+    const end = endDate ?? new Date().toISOString().slice(0, 10);
+    const start = startDate ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return this.volcengine.getUsage(start, end);
+  }
   @Get('storage') @UseGuards(AdminGuard) async storageConfig() {
     const config = await this.storage.getStorageConfig();
     return config ? { ...config, qiniuAccessKey: Boolean(config.qiniuAccessKey), qiniuSecretKey: Boolean(config.qiniuSecretKey) } : { provider: 'local', enabled: false, fallbackLocal: true, qiniuPrivate: true, qiniuUrlTtlSeconds: 2592000 };

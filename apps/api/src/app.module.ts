@@ -26,6 +26,7 @@ import { AdminController } from './admin.controller';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { SecretsService } from './secrets.service';
+import { VolcengineService } from './volcengine.service';
 
 @Module({
   imports: [
@@ -45,6 +46,6 @@ import { SecretsService } from './secrets.service';
     }),
   ],
   controllers: [HealthController, AuthController, TemplatesController, GenerationsController, UploadsController, AssetsController, CoinController, AdminController],
-  providers: [PrismaService, AuthService, ZaloIdentityProvider, TemplatesService, CoinService, GenerationsService, ApiKeyPool, SeedreamProvider, AuthGuard, StorageService, GenerationQueue, GenerationWorker, MaintenanceService, AdminGuard, AdminService, SecretsService],
+  providers: [PrismaService, AuthService, ZaloIdentityProvider, TemplatesService, CoinService, GenerationsService, ApiKeyPool, SeedreamProvider, AuthGuard, StorageService, GenerationQueue, GenerationWorker, MaintenanceService, AdminGuard, AdminService, SecretsService, VolcengineService],
 })
 export class AppModule {}

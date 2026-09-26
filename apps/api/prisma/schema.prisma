@@ -152,6 +152,14 @@ model StorageConfig {
   updatedAt           DateTime @updatedAt
 }
 
+model VolcengineConfig {
+  id         String   @id
+  accessKey  String?
+  secretKey  String?
+  region     String   @default("cn-beijing")
+  updatedAt  DateTime @updatedAt
+}
+
 model ApiKey {
   id             String       @id @default(cuid())
   label          String
