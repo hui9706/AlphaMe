@@ -78,10 +78,14 @@ export class StorageService {
     const accessKey = this.secrets.decrypt(encryptedAccessKey);
     const secretKey = this.secrets.decrypt(encryptedSecretKey);
     const path = '/buckets';
+    const host = 'uc.qiniuapi.com';
+    const contentType = 'application/x-www-form-urlencoded';
     const qiniuDate = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    const signingString = `GET ${path}\nHost: ${host}\nContent-Type: ${contentType}\nX-Qiniu-Date: ${qiniuDate}\n\n`;
+    const signature = createHmac('sha1', secretKey).update(signingString).digest('base64').replace(/\+/g, '-').replace(/\//g, '_');
     let response: Response;
     try {
-      response = await fetch(`https://uc.qiniuapi.com${path}`, { headers: { 'X-Qiniu-Date': qiniuDate, Authorization: `Qiniu ${accessKey}:${this.sign(secretKey, `${path}\n`)}` } });
+      response = await fetch(`https://${host}${path}`, { headers: { 'Content-Type': contentType, 'X-Qiniu-Date': qiniuDate, Authorization: `Qiniu ${accessKey}:${signature}` } });
     } catch (error) {
       throw new BadGatewayException(`无法连接七牛云：${error instanceof Error ? error.message : '网络错误'}`);
     }
