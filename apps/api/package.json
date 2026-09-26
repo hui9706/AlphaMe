@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
+    "prebuild": "npm run prisma:generate",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
+    "pretypecheck": "npm run prisma:generate",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:migrate": "prisma migrate deploy",
