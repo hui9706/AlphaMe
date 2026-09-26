@@ -119,14 +119,14 @@ model Generation {
 
 model Asset {
   id         String   @id @default(cuid())
-  userId     String
+  userId     String?
   kind       String
   storageKey String   @unique
   publicUrl  String
   mimeType   String
   byteSize   Int
-  expiresAt  DateTime
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
   @@index([userId, kind, createdAt])

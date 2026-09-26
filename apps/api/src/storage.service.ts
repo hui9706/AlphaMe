@@ -18,11 +18,11 @@ export class StorageService {
   }
 
   async saveDataUrl(userId: string, dataUrl: string, kind: 'input' | 'generated') {
-    const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/i.exec(dataUrl);
-    if (!match) throw new BadRequestException('Only jpeg, png, and webp data URLs are supported');
-    const buffer = Buffer.from(match[2], 'base64');
-    if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) throw new BadRequestException('Image must be between 1 byte and 15MB');
-    return this.saveBuffer(userId, buffer, match[1].toLowerCase(), kind);
+    return this.saveDataUrlToStorage(dataUrl, { userId, kind, retentionDays: kind === 'input' ? 3 / 24 : 30 });
+  }
+
+  async saveTemplateCover(dataUrl: string) {
+    return this.saveDataUrlToStorage(dataUrl, { kind: 'template-cover' });
   }
 
   async importRemote(userId: string, url: string, kind: 'generated', retentionDays: number) {
@@ -44,18 +44,26 @@ export class StorageService {
 
   async readById(assetId: string) {
     const asset = await this.prisma.asset.findUnique({ where: { id: assetId } });
-    if (!asset || asset.expiresAt.getTime() <= Date.now()) return null;
+    if (!asset || (asset.expiresAt && asset.expiresAt.getTime() <= Date.now())) return null;
     return { asset, path: join(this.root, asset.storageKey) };
   }
 
-  private async saveBuffer(userId: string, buffer: Buffer, mimeType: string, kind: 'input' | 'generated', retentionDays = kind === 'input' ? 3 / 24 : 30) {
+  private async saveDataUrlToStorage(dataUrl: string, options: { userId?: string; kind: 'input' | 'generated' | 'template-cover'; retentionDays?: number }) {
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/i.exec(dataUrl);
+    if (!match) throw new BadRequestException('Only jpeg, png, and webp data URLs are supported');
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) throw new BadRequestException('Image must be between 1 byte and 15MB');
+    return this.saveBuffer(options.userId, buffer, match[1].toLowerCase(), options.kind, options.retentionDays);
+  }
+
+  private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'template-cover', retentionDays?: number) {
     const extension = extname(`file.${mimeType.split('/')[1]}`);
-    const storageKey = `${kind}/${userId}/${randomUUID()}${extension}`;
+    const storageKey = `${kind}/${userId ? `${userId}/` : ''}${randomUUID()}${extension}`;
     const path = join(this.root, storageKey);
-    await mkdir(join(this.root, kind, userId), { recursive: true });
+    await mkdir(join(this.root, storageKey, '..'), { recursive: true });
     await writeFile(path, buffer, { flag: 'wx' });
     const assetId = randomUUID();
-    const asset = await this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) } });
+    const asset = await this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
     return asset;
   }
 }
