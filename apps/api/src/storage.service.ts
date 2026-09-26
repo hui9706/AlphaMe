@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -77,9 +77,18 @@ export class StorageService {
     if (!encryptedAccessKey || !encryptedSecretKey || !bucket) throw new Error('请填写 AccessKey、SecretKey 和 Bucket');
     const accessKey = this.secrets.decrypt(encryptedAccessKey);
     const secretKey = this.secrets.decrypt(encryptedSecretKey);
-    const path = '/v6/buckets';
-    const response = await fetch(`https://api.qiniu.com${path}`, { headers: { Authorization: `QBox ${accessKey}:${this.sign(secretKey, `${path}\n`)}` } });
-    if (!response.ok) throw new Error(`七牛云连接失败（HTTP ${response.status}）`);
+    const path = '/buckets';
+    const qiniuDate = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    let response: Response;
+    try {
+      response = await fetch(`https://uc.qiniuapi.com${path}`, { headers: { 'X-Qiniu-Date': qiniuDate, Authorization: `Qiniu ${accessKey}:${this.sign(secretKey, `${path}\n`)}` } });
+    } catch (error) {
+      throw new BadGatewayException(`无法连接七牛云：${error instanceof Error ? error.message : '网络错误'}`);
+    }
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 180);
+      throw new BadGatewayException(`七牛云连接失败（HTTP ${response.status}）${detail ? `：${detail}` : ''}`);
+    }
     const buckets = await response.json() as unknown;
     if (!Array.isArray(buckets) || !buckets.includes(bucket)) throw new Error('七牛云凭证有效，但找不到目标 Bucket');
     return { ok: true, message: `连接成功，Bucket「${bucket}」可访问` };
