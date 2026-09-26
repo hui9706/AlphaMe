@@ -49,6 +49,11 @@ jobs:
           ssh-keyscan -p "${SERVER_PORT}" -H "${SERVER_HOST}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      - name: Prepare remote directory
+        run: |
+          ssh -p "${SERVER_PORT}" "${SERVER_USER}@${SERVER_HOST}" \
+            "mkdir -p '${REMOTE_DIR}'"
+
       - name: Sync project to server
         run: |
           rsync -az --delete \
