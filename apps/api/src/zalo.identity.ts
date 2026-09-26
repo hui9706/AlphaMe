@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'node:crypto';
 
 export type ZaloIdentity = { openId: string; displayName?: string; avatarUrl?: string };
 
@@ -7,12 +8,15 @@ export type ZaloIdentity = { openId: string; displayName?: string; avatarUrl?: s
 export class ZaloIdentityProvider {
   constructor(private readonly config: ConfigService) {}
 
-  async exchange(authCode: string, authCodeVerify: string): Promise<ZaloIdentity> {
-    const url = this.config.get<string>('ZALO_AUTH_EXCHANGE_URL');
-    if (!url) throw new ServiceUnavailableException('ZALO_AUTH_EXCHANGE_URL is not configured');
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app_id: this.config.get('ZALO_APP_ID'), app_secret: this.config.get('ZALO_APP_SECRET'), auth_code: authCode, auth_code_verify: authCodeVerify }) });
-    const payload = await response.json() as { open_id?: string; user_id?: string; display_name?: string; name?: string; avatar_url?: string; error?: string };
-    if (!response.ok || (!payload.open_id && !payload.user_id)) throw new UnauthorizedException(payload.error ?? 'Zalo authentication failed');
-    return { openId: payload.open_id ?? payload.user_id!, displayName: payload.display_name ?? payload.name, avatarUrl: payload.avatar_url };
+  async getIdentity(accessToken: string): Promise<ZaloIdentity> {
+    const appSecret = this.config.get<string>('ZALO_APP_SECRET');
+    if (!appSecret) throw new ServiceUnavailableException('ZALO_APP_SECRET is not configured');
+    const appsecretProof = createHmac('sha256', appSecret).update(accessToken).digest('hex');
+    const url = new URL('https://graph.zalo.me/v2.0/me');
+    url.searchParams.set('fields', 'id');
+    const response = await fetch(url, { headers: { access_token: accessToken, appsecret_proof: appsecretProof } });
+    const payload = await response.json() as { id?: string; error?: number };
+    if (!response.ok || payload.error || !payload.id) throw new UnauthorizedException('Zalo authentication failed');
+    return { openId: payload.id };
   }
 }

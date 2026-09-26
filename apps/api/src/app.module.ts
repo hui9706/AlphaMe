@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { resolve } from 'node:path';
 import { PrismaService } from './prisma.service';
 import { HealthController } from './health.controller';
 import { AuthController } from './auth.controller';
@@ -30,9 +31,10 @@ import { SecretsService } from './secrets.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [resolve(process.cwd(), 'apps/api/.env'), resolve(process.cwd(), '.env')],
       validate: (config) => {
-        if (config.NODE_ENV === 'production' && (!config.DATABASE_URL || !config.JWT_SECRET || config.JWT_SECRET === 'development-only-secret' || !config.ADMIN_ENCRYPTION_KEY)) {
-          throw new Error('DATABASE_URL, JWT_SECRET, and ADMIN_ENCRYPTION_KEY are required in production');
+        if (config.NODE_ENV === 'production' && (!config.DATABASE_URL || !config.JWT_SECRET || config.JWT_SECRET === 'development-only-secret' || !config.ADMIN_ENCRYPTION_KEY || !config.ZALO_APP_SECRET)) {
+          throw new Error('DATABASE_URL, JWT_SECRET, ADMIN_ENCRYPTION_KEY, and ZALO_APP_SECRET are required in production');
         }
         return config;
       },

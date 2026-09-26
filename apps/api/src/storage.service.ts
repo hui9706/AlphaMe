@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
+import { SecretsService } from './secrets.service';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
@@ -12,7 +13,7 @@ export class StorageService {
   private readonly root: string;
   private readonly publicBaseUrl: string;
 
-  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService) {
+  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, private readonly secrets: SecretsService) {
     this.root = config.get('UPLOAD_ROOT', './var/uploads');
     this.publicBaseUrl = config.get('PUBLIC_ASSET_BASE_URL', 'http://localhost:3000/v1/assets');
   }
@@ -45,7 +46,43 @@ export class StorageService {
   async readById(assetId: string) {
     const asset = await this.prisma.asset.findUnique({ where: { id: assetId } });
     if (!asset || (asset.expiresAt && asset.expiresAt.getTime() <= Date.now())) return null;
+    if (asset.storageProvider === 'qiniu') return { asset, url: await this.getQiniuUrl(asset.storageKey) };
     return { asset, path: join(this.root, asset.storageKey) };
+  }
+
+  async getStorageConfig() { return this.prisma.storageConfig.findUnique({ where: { id: 'default' } }); }
+
+  async saveStorageConfig(input: { provider: string; enabled: boolean; qiniuAccessKey?: string; qiniuSecretKey?: string; qiniuBucket?: string; qiniuRegion?: string; qiniuDomain?: string; qiniuPrivate?: boolean; qiniuUrlTtlSeconds?: number; fallbackLocal?: boolean }) {
+    const current = await this.getStorageConfig();
+    const data = {
+      provider: input.provider,
+      enabled: input.enabled,
+      qiniuAccessKey: input.qiniuAccessKey ? this.secrets.encrypt(input.qiniuAccessKey) : current?.qiniuAccessKey,
+      qiniuSecretKey: input.qiniuSecretKey ? this.secrets.encrypt(input.qiniuSecretKey) : current?.qiniuSecretKey,
+      qiniuBucket: input.qiniuBucket,
+      qiniuRegion: input.qiniuRegion,
+      qiniuDomain: input.qiniuDomain?.replace(/\/$/, ''),
+      qiniuPrivate: input.qiniuPrivate ?? true,
+      qiniuUrlTtlSeconds: Math.min(Math.max(input.qiniuUrlTtlSeconds ?? 2592000, 300), 2592000),
+      fallbackLocal: input.fallbackLocal ?? true,
+    };
+    return this.prisma.storageConfig.upsert({ where: { id: 'default' }, create: { id: 'default', ...data }, update: data });
+  }
+
+  async testQiniuConnection(input: { qiniuAccessKey?: string; qiniuSecretKey?: string; qiniuBucket?: string }) {
+    const current = await this.getStorageConfig();
+    const encryptedAccessKey = input.qiniuAccessKey ? this.secrets.encrypt(input.qiniuAccessKey) : current?.qiniuAccessKey;
+    const encryptedSecretKey = input.qiniuSecretKey ? this.secrets.encrypt(input.qiniuSecretKey) : current?.qiniuSecretKey;
+    const bucket = input.qiniuBucket ?? current?.qiniuBucket;
+    if (!encryptedAccessKey || !encryptedSecretKey || !bucket) throw new Error('请填写 AccessKey、SecretKey 和 Bucket');
+    const accessKey = this.secrets.decrypt(encryptedAccessKey);
+    const secretKey = this.secrets.decrypt(encryptedSecretKey);
+    const path = '/v6/buckets';
+    const response = await fetch(`https://api.qiniu.com${path}`, { headers: { Authorization: `QBox ${accessKey}:${this.sign(secretKey, `${path}\n`)}` } });
+    if (!response.ok) throw new Error(`七牛云连接失败（HTTP ${response.status}）`);
+    const buckets = await response.json() as unknown;
+    if (!Array.isArray(buckets) || !buckets.includes(bucket)) throw new Error('七牛云凭证有效，但找不到目标 Bucket');
+    return { ok: true, message: `连接成功，Bucket「${bucket}」可访问` };
   }
 
   private async saveDataUrlToStorage(dataUrl: string, options: { userId?: string; kind: 'input' | 'generated' | 'template-cover'; retentionDays?: number }) {
@@ -59,11 +96,50 @@ export class StorageService {
   private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'template-cover', retentionDays?: number) {
     const extension = extname(`file.${mimeType.split('/')[1]}`);
     const storageKey = `${kind}/${userId ? `${userId}/` : ''}${randomUUID()}${extension}`;
+    const assetId = randomUUID();
+    const config = await this.getStorageConfig();
+    if (config?.enabled && config.provider === 'qiniu') {
+      try {
+        await this.uploadQiniu(storageKey, buffer, mimeType, config);
+        return this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, storageProvider: 'qiniu', publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
+      } catch (error) {
+        if (!config.fallbackLocal) throw error;
+      }
+    }
     const path = join(this.root, storageKey);
     await mkdir(join(this.root, storageKey, '..'), { recursive: true });
     await writeFile(path, buffer, { flag: 'wx' });
-    const assetId = randomUUID();
-    const asset = await this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
-    return asset;
+    return this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, storageProvider: 'local', publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
   }
+
+  private async uploadQiniu(key: string, buffer: Buffer, mimeType: string, config: { qiniuAccessKey: string | null; qiniuSecretKey: string | null; qiniuBucket: string | null; qiniuRegion: string | null; qiniuDomain: string | null; qiniuPrivate: boolean; qiniuUrlTtlSeconds: number }) {
+    if (!config.qiniuAccessKey || !config.qiniuSecretKey || !config.qiniuBucket || !config.qiniuDomain) throw new Error('Qiniu storage is not fully configured');
+    const accessKey = this.secrets.decrypt(config.qiniuAccessKey);
+    const secretKey = this.secrets.decrypt(config.qiniuSecretKey);
+    const deadline = Math.floor(Date.now() / 1000) + 3600;
+    const policy = Buffer.from(JSON.stringify({ scope: `${config.qiniuBucket}:${key}`, deadline, insertOnly: 1 })).toString('base64url');
+    const token = `${accessKey}:${this.sign(secretKey, policy)}:${policy}`;
+    const form = new FormData();
+    form.append('token', token);
+    form.append('key', key);
+    form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), key.split('/').pop() ?? 'image');
+    const response = await fetch(this.uploadEndpoint(config.qiniuRegion), { method: 'POST', body: form });
+    if (!response.ok) throw new Error(`Qiniu upload failed with status ${response.status}`);
+    return this.getQiniuUrl(key, config);
+  }
+
+  private async getQiniuUrl(key: string, supplied?: { qiniuAccessKey: string | null; qiniuSecretKey: string | null; qiniuDomain: string | null; qiniuPrivate: boolean; qiniuUrlTtlSeconds: number }) {
+    const config = supplied ?? await this.getStorageConfig();
+    if (!config?.qiniuDomain) return `${this.publicBaseUrl}/${key}`;
+    const base = `${config.qiniuDomain.replace(/\/$/, '')}/${key}`;
+    if (!config.qiniuPrivate) return base;
+    if (!config.qiniuAccessKey || !config.qiniuSecretKey) throw new Error('Qiniu private URL signing is not configured');
+    const accessKey = this.secrets.decrypt(config.qiniuAccessKey);
+    const secretKey = this.secrets.decrypt(config.qiniuSecretKey);
+    const signed = `${base}?e=${Math.floor(Date.now() / 1000) + config.qiniuUrlTtlSeconds}`;
+    return `${signed}&token=${accessKey}:${this.sign(secretKey, signed)}`;
+  }
+
+  private uploadEndpoint(region?: string | null) { return ({ as0: 'https://up-as0.qiniup.com', z0: 'https://up-z0.qiniup.com', z1: 'https://up-z1.qiniup.com', z2: 'https://up-z2.qiniup.com', na0: 'https://up-na0.qiniup.com' } as Record<string, string>)[region ?? 'as0'] ?? 'https://up-as0.qiniup.com'; }
+  private sign(secret: string, value: string) { return createHmac('sha1', secret).update(value).digest('base64url'); }
 }

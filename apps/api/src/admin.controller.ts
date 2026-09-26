@@ -10,6 +10,23 @@ class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional(
 class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true }) templateIds!: string[]; }
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
 class TemplateCoverUploadDto { @IsString() @MinLength(20) dataUrl!: string; }
+class StorageConfigDto {
+  @IsString() provider!: string;
+  @IsBoolean() enabled!: boolean;
+  @IsOptional() @IsString() qiniuAccessKey?: string;
+  @IsOptional() @IsString() qiniuSecretKey?: string;
+  @IsOptional() @IsString() qiniuBucket?: string;
+  @IsOptional() @IsString() qiniuRegion?: string;
+  @IsOptional() @IsString() qiniuDomain?: string;
+  @IsOptional() @IsBoolean() qiniuPrivate?: boolean;
+  @IsOptional() @IsInt() @Min(300) qiniuUrlTtlSeconds?: number;
+  @IsOptional() @IsBoolean() fallbackLocal?: boolean;
+}
+class StorageTestDto {
+  @IsOptional() @IsString() qiniuAccessKey?: string;
+  @IsOptional() @IsString() qiniuSecretKey?: string;
+  @IsOptional() @IsString() qiniuBucket?: string;
+}
 
 @Controller('admin')
 export class AdminController {
@@ -28,4 +45,10 @@ export class AdminController {
   @Get('api-keys') @UseGuards(AdminGuard) apiKeys() { return this.admin.apiKeys(); }
   @Post('api-keys') @UseGuards(AdminGuard) createApiKey(@Body() body: ApiKeyDto) { return this.admin.createApiKey(body.label, body.value, body.priority); }
   @Patch('api-keys/:id') @UseGuards(AdminGuard) updateApiKey(@Param('id') id: string, @Body() body: { priority?: number; status?: 'ACTIVE' | 'PAUSED' }) { return this.admin.updateApiKey(id, body); }
+  @Get('storage') @UseGuards(AdminGuard) async storageConfig() {
+    const config = await this.storage.getStorageConfig();
+    return config ? { ...config, qiniuAccessKey: Boolean(config.qiniuAccessKey), qiniuSecretKey: Boolean(config.qiniuSecretKey) } : { provider: 'local', enabled: false, fallbackLocal: true, qiniuPrivate: true, qiniuUrlTtlSeconds: 2592000 };
+  }
+  @Patch('storage') @UseGuards(AdminGuard) updateStorage(@Body() body: StorageConfigDto) { return this.storage.saveStorageConfig(body).then((config) => ({ ...config, qiniuAccessKey: Boolean(config.qiniuAccessKey), qiniuSecretKey: Boolean(config.qiniuSecretKey) })); }
+  @Post('storage/test') @UseGuards(AdminGuard) testStorage(@Body() body: StorageTestDto) { return this.storage.testQiniuConnection(body); }
 }

@@ -11,6 +11,7 @@ export class AssetsController {
   async get(@Param('id') id: string, @Res() response: any) {
     const asset = await this.storage.readById(id);
     if (!asset) throw new NotFoundException('Asset not found');
+    if ('url' in asset) return response.redirect(asset.url);
     let fileInfo;
     try {
       fileInfo = await stat(asset.path);

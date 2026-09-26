@@ -19,7 +19,7 @@ npm run dev:api
 接口前缀为 `/v1`：
 
 - `GET /v1/health`
-- `POST /v1/auth/zalo`：请求体为 `{ authCode, authCodeVerify }`，生产模式通过 `ZALO_AUTH_EXCHANGE_URL` 调用服务端交换适配器；仅显式设置 `ZALO_AUTH_MODE=stub` 才启用本地开发桩
+- `POST /v1/auth/zalo`：请求体为 `{ accessToken }`；生产环境由后端使用 `ZALO_APP_SECRET` 计算 `appsecret_proof`，并向 Zalo Graph API 校验用户身份；仅显式设置 `ZALO_AUTH_MODE=stub` 才启用本地开发桩
 - `GET /v1/templates`
 - `POST /v1/uploads/image`：Bearer JWT + `{ dataUrl }`，目前限制 15MB 的 jpeg/png/webp
 - `POST /v1/generations`：要求 Bearer JWT、`Idempotency-Key`、`templateId` 和 `sourceAssetUrl`

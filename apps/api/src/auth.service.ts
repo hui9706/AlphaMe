@@ -7,8 +7,8 @@ import { ZaloIdentityProvider } from './zalo.identity';
 export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly zalo: ZaloIdentityProvider) {}
 
-  async exchangeZaloCode(authCode: string, authCodeVerify: string) {
-    const identity = process.env.ZALO_AUTH_MODE === 'stub' ? { openId: `dev:${authCode}` } : await this.zalo.exchange(authCode, authCodeVerify);
+  async loginWithZalo(accessToken: string) {
+    const identity = process.env.ZALO_AUTH_MODE === 'stub' ? { openId: 'dev:local-user' } : await this.zalo.getIdentity(accessToken);
     const zaloOpenId = identity.openId;
     const user = await this.prisma.user.upsert({
       where: { zaloOpenId },

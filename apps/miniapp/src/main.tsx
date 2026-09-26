@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { createGeneration, getGenerations, getTemplates, isRealAuthEnabled, loginWithZalo, uploadImage, type Generation, type Template } from './api';
+import { clearAccessToken, createGeneration, getGenerations, getMe, getStoredAccessToken, getTemplates, isRealAuthEnabled, loginWithZalo, resolveTemplateCoverUrl, uploadImage, type Generation, type Session, type Template } from './api';
 
 type Lang = 'vi' | 'zh';
 const copy = {
@@ -14,32 +14,66 @@ const defaultStyles: Array<{ id: string; name: string; zh: string; meta: string;
   { id: 'movie-poster', name: 'Movie Poster', zh: '电影海报', meta: 'Cinematic · 10 Coin', tone: 'pink', icon: '◆' }
 ];
 
+type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'preview';
+
 function App() {
   const [lang, setLang] = useState<Lang>('vi');
   const [active, setActive] = useState('home');
-  const [authError, setAuthError] = useState(false);
-  const [styles, setStyles] = useState<typeof defaultStyles>([]);
+  const [styles, setStyles] = useState<typeof defaultStyles>(defaultStyles);
   const [selectedStyleId, setSelectedStyleId] = useState('');
+  const [authState, setAuthState] = useState<AuthState>('preview');
+  const [session, setSession] = useState<Session['user']>();
+  const [authError, setAuthError] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
   const t = copy[lang];
   useEffect(() => {
     void getTemplates().then((templates) => {
-      if (templates.length > 0) { setStyles(templates.map((template: Template, index) => ({ id: template.id, name: template.nameVi, zh: template.nameZh, meta: `AI · ${template.coinCost} Coin`, tone: ['cyan', 'violet', 'pink'][index % 3], icon: ['✦', '◌', '◆'][index % 3], coverUrl: template.coverUrl }))); setSelectedStyleId(templates[0].id); }
-    }).catch(() => setAuthError(true));
-    if (isRealAuthEnabled()) void loginWithZalo().catch(() => setAuthError(true));
+      if (templates.length > 0) { setStyles(templates.map((template: Template, index) => ({ id: template.id, name: template.nameVi, zh: template.nameZh, meta: `AI · ${template.coinCost} Coin`, tone: ['cyan', 'violet', 'pink'][index % 3], icon: ['✦', '◌', '◆'][index % 3], coverUrl: resolveTemplateCoverUrl(template.coverUrl, template.updatedAt) }))); setSelectedStyleId(templates[0].id); }
+    }).catch(() => undefined);
+    if (isRealAuthEnabled()) void restoreStoredSession();
   }, []);
+  const restoreStoredSession = async () => {
+    if (!getStoredAccessToken()) return;
+    try {
+      setSession(await getMe()); setAuthState('authenticated');
+    } catch {
+      clearAccessToken(); setSession(undefined); setAuthState('preview');
+    }
+  };
+  const beginLogin = async () => {
+    setShowLogin(true); setAuthState('loading'); setAuthError('');
+    try {
+      const next = await loginWithZalo();
+      setSession(next.user); setAuthState('authenticated'); setShowLogin(false);
+    } catch (error) {
+      setSession(undefined); setAuthState('unauthenticated');
+      setAuthError(error instanceof Error && error.message === 'ZALO_ACCESS_TOKEN_EMPTY'
+        ? (lang === 'zh' ? 'Zalo 没有返回登录凭证，请重试或检查小程序登录权限。' : 'Zalo không trả về thông tin đăng nhập, vui lòng thử lại.')
+        : (lang === 'zh' ? '登录失败，请重试。' : 'Đăng nhập thất bại, vui lòng thử lại.'));
+    }
+  };
+  const openLogin = () => {
+    if (authState !== 'authenticated') void beginLogin();
+  };
+  if (showLogin && authState === 'loading') return <main className="phone-shell"><section className="app-canvas auth-screen"><div className="auth-card"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-spinner" /><p>{lang === 'zh' ? '正在登录…' : 'Đang đăng nhập…'}</p></div></section></main>;
+  if (showLogin && authState === 'unauthenticated') return <main className="phone-shell"><section className="app-canvas auth-screen"><AuthView lang={lang} error={authError} onRetry={() => void beginLogin()} /></section></main>;
   return <main className="phone-shell">
     <section className="app-canvas">
-      <header className="topbar"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="top-actions"><button className="lang-switch" onClick={() => setLang(lang === 'vi' ? 'zh' : 'vi')}>{lang === 'vi' ? '中' : 'VI'}</button><div className="coin-pill"><span>✦</span> 10</div><div className="avatar">I</div></div></header>
-      {authError && <div role="alert" className="auth-error">Unable to sign in to AlphaMe. Please reopen the Mini App and try again.</div>}
+      <header className="topbar"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="top-actions"><button className="lang-switch" onClick={() => setLang(lang === 'vi' ? 'zh' : 'vi')}>{lang === 'vi' ? '中' : 'VI'}</button><div className="coin-pill"><span>✦</span> {session?.coinAccount?.available ?? 0} Coin</div><div className="avatar" aria-label={t.navMe}><span className="profile-icon" /></div></div></header>
       {active === 'home' ? <>
-        <section className="hero"><div className="eyebrow">ALPHAME STUDIO <span>✦</span></div><h1>{t.title.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h1><p>{t.subtitle}</p><button className="primary-cta" onClick={() => setActive('styles')}>{t.create}<span>↗</span></button><div className="orb orb-a" /><div className="orb orb-b" /></section>
-        <section className="section-block"><div className="section-heading"><div><span className="kicker">01 / {t.explore}</span><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><div><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div><button className="circle-arrow">↗</button></div></article>)}</div></section>
-        <section className="social-strip"><div className="social-mark">◎</div><div><span className="kicker">02 / SOCIAL AI</span><h2>{t.friends}</h2><p>{lang === 'vi' ? 'Tạo nên một câu chuyện cùng người bạn.' : '和朋友一起，创造属于你们的故事。'}</p></div><span className="strip-arrow">↗</span></section>
+        <section className="hero"><div className="hero-copy"><div className="eyebrow">ALPHAME STUDIO <span>✦</span></div><h1>{t.title.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h1><p>{t.subtitle}</p><button className="primary-cta" onClick={() => setActive('styles')}>{t.create}<span>→</span></button></div><div className="hero-card"><img src="/hero-portrait.png" alt="" /><span className="hero-caption">AlphaMe<br /><em>portrait studio</em></span></div></section>
+        <section className="section-block"><div className="section-heading"><div><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div></article>)}</div></section>
+        <section className="social-strip"><div className="social-mark">◎</div><div><span className="kicker">02 / SOCIAL AI</span><h2>{t.friends}</h2><p>{lang === 'vi' ? 'Tạo nên một câu chuyện cùng người bạn.' : '和朋友一起，创造属于你们的故事。'}</p></div><span className="strip-arrow">→</span></section>
         <section className="challenge-row"><div><span className="kicker">03 / DAILY</span><h2>{t.challenge}</h2></div><div className="challenge-badge">NEW<br /><strong>24H</strong></div></section>
-      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} /> : <section className="create-view"><div className="create-heading"><span className="kicker">ALPHAME</span><h1>{active === 'friends' ? t.friends : t.navMe}</h1><p>{lang === 'zh' ? '该模块将在下一阶段接入真实数据。' : 'Tính năng này sẽ được kết nối dữ liệu thật ở giai đoạn tiếp theo.'}</p></div></section>}
+      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} /> : <section className="create-view"><div className="create-heading"><span className="kicker">ALPHAME</span><h1>{active === 'friends' ? t.friends : t.navMe}</h1><p>{lang === 'zh' ? '该模块将在下一阶段接入真实数据。' : 'Tính năng này sẽ được kết nối dữ liệu thật ở giai đoạn tiếp theo.'}</p></div></section>}
       <nav className="bottom-nav">{[["home", t.navHome, '⌂'], ['friends', t.navFriends, '◉'], ['works', t.navWorks, '▧'], ['me', t.navMe, '◎']].map(([id, label, icon]) => <button className={active === id ? 'active' : ''} onClick={() => setActive(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
     </section>
   </main>;
+}
+
+function AuthView({ lang, error, onRetry }: { lang: Lang; error: string; onRetry: () => void }) {
+  const zh = lang === 'zh';
+  return <div className="auth-card"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-copy"><span className="kicker">ALPHAME STUDIO</span><h1>{zh ? '登录后开始创作' : 'Đăng nhập để bắt đầu'}</h1><p>{zh ? '使用 Zalo 登录，保存你的作品和 Coin。' : 'Đăng nhập bằng Zalo để lưu tác phẩm và Coin của bạn.'}</p></div>{error && <p className="auth-error">{error}</p>}<button className="primary-cta full" onClick={onRetry}>{zh ? '使用 Zalo 登录' : 'Đăng nhập bằng Zalo'} <span>→</span></button></div>;
 }
 
 function WorksView({ lang }: { lang: Lang }) {
@@ -51,10 +85,10 @@ function WorksView({ lang }: { lang: Lang }) {
 
 function StylePicker({ lang, styles, onBack, onSelect }: { lang: Lang; styles: typeof defaultStyles; onBack: () => void; onSelect: (styleId: string) => void }) {
   const zh = lang === 'zh';
-  return <section className="create-view style-picker"><button className="back-button" onClick={onBack}>← {zh ? '返回首页' : 'Về trang chủ'}</button><div className="create-heading"><span className="kicker">01 / STYLE</span><h1>{zh ? '先选一个风格' : 'Chọn một phong cách'}</h1><p>{zh ? '选择你想要的 AI 版本，下一步再上传照片。' : 'Chọn phiên bản AI bạn muốn, sau đó tải ảnh lên.'}</p></div><div className="picker-grid">{styles.map(style => <button className={`picker-card ${style.tone}`} key={style.id} onClick={() => onSelect(style.id)}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="picker-info"><div><h3>{zh ? style.zh : style.name}</h3><p>{style.meta}</p></div><span className="circle-arrow">↗</span></div></button>)}</div></section>;
+  return <section className="create-view style-picker"><button className="back-button" onClick={onBack}>← {zh ? '返回首页' : 'Về trang chủ'}</button><div className="create-heading"><h1>{zh ? '先选一个风格' : 'Chọn một phong cách'}</h1><p>{zh ? '选择你想要的 AI 版本，下一步再上传照片。' : 'Chọn phiên bản AI bạn muốn, sau đó tải ảnh lên.'}</p></div><div className="picker-grid">{styles.map(style => <button className={`picker-card ${style.tone}`} key={style.id} onClick={() => onSelect(style.id)}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="picker-info"><h3>{zh ? style.zh : style.name}</h3><p>{style.meta}</p></div></button>)}</div></section>;
 }
 
-function CreateView({ lang, templateId, onBack }: { lang: Lang; templateId: string; onBack: () => void }) {
+function CreateView({ lang, templateId, authenticated, onRequireLogin, onBack }: { lang: Lang; templateId: string; authenticated: boolean; onRequireLogin: () => void; onBack: () => void }) {
   const zh = lang === 'zh';
   const [dataUrl, setDataUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -66,6 +100,7 @@ function CreateView({ lang, templateId, onBack }: { lang: Lang; templateId: stri
     reader.readAsDataURL(file);
   };
   const generate = async () => {
+    if (!authenticated) { onRequireLogin(); return; }
     if (!dataUrl) { setError(zh ? '请先选择照片。' : 'Vui lòng chọn ảnh trước.'); return; }
     setBusy(true); setError('');
     try {
@@ -75,7 +110,7 @@ function CreateView({ lang, templateId, onBack }: { lang: Lang; templateId: stri
     } catch { setError(zh ? '生成暂时不可用，请稍后重试。' : 'Tạo ảnh tạm thời chưa khả dụng, hãy thử lại sau.'); }
     finally { setBusy(false); }
   };
-  return <section className="create-view"><button className="back-button" onClick={onBack}>← {zh ? '返回风格' : 'Quay lại phong cách'}</button><div className="create-heading"><span className="kicker">SELECTED STYLE</span><h1>{zh ? '上传一张清晰的脸部照片' : 'Tải lên một ảnh rõ khuôn mặt'}</h1><p>{zh ? '光线自然、正面清晰的照片会带来更好的结果。' : 'Ảnh rõ mặt, ánh sáng tự nhiên sẽ cho kết quả tốt hơn.'}</p></div><label className="upload-zone"><div className="upload-icon">{dataUrl ? '✓' : '＋'}</div><strong>{dataUrl ? (zh ? '照片已选择' : 'Đã chọn ảnh') : (zh ? '选择照片' : 'Chọn ảnh')}</strong><span>JPG · PNG · WEBP · max 15MB</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => onFile(event.target.files?.[0])} /></label><div className="cost-row"><span>{zh ? '生成成本' : 'Chi phí tạo ảnh'}</span><strong>✦ 10 Coin</strong></div>{error && <p className="auth-error">{error}</p>}<button className="primary-cta full" disabled={busy} onClick={() => void generate()}>{busy ? (zh ? '提交中…' : 'Đang gửi…') : (zh ? '开始生成' : 'Bắt đầu tạo')} <span>↗</span></button></section>;
+  return <section className="create-view"><button className="back-button" onClick={onBack}>← {zh ? '返回风格' : 'Quay lại phong cách'}</button><div className="create-heading"><span className="kicker">SELECTED STYLE</span><h1>{zh ? '上传一张清晰的脸部照片' : 'Tải lên một ảnh rõ khuôn mặt'}</h1><p>{zh ? '光线自然、正面清晰的照片会带来更好的结果。' : 'Ảnh rõ mặt, ánh sáng tự nhiên sẽ cho kết quả tốt hơn.'}</p></div><label className="upload-zone" onClick={(event) => { if (!authenticated) { event.preventDefault(); onRequireLogin(); } }}><div className="upload-icon">{dataUrl ? '✓' : '＋'}</div><strong>{dataUrl ? (zh ? '照片已选择' : 'Đã chọn ảnh') : (zh ? '选择照片' : 'Chọn ảnh')}</strong><span>JPG · PNG · WEBP · max 15MB</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => onFile(event.target.files?.[0])} /></label><div className="cost-row"><span>{zh ? '生成成本' : 'Chi phí tạo ảnh'}</span><strong>✦ 10 Coin</strong></div>{error && <p className="auth-error">{error}</p>}<button className="primary-cta full" disabled={busy} onClick={() => void generate()}>{busy ? (zh ? '提交中…' : 'Đang gửi…') : (zh ? '开始生成' : 'Bắt đầu tạo')} <span>↗</span></button></section>;
 }
 
 createRoot(document.getElementById('app')!).render(<StrictMode><App /></StrictMode>);

@@ -6,11 +6,7 @@ import { AuthGuard } from './auth.guard';
 class ZaloLoginDto {
   @IsString()
   @MinLength(1)
-  authCode!: string;
-
-  @IsString()
-  @MinLength(1)
-  authCodeVerify!: string;
+  accessToken!: string;
 }
 
 @Controller('auth')
@@ -18,7 +14,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('zalo')
-  login(@Body() body: ZaloLoginDto) { return this.auth.exchangeZaloCode(body.authCode, body.authCodeVerify); }
+  login(@Body() body: ZaloLoginDto) { return this.auth.loginWithZalo(body.accessToken); }
 
   @Get('me')
   @UseGuards(AuthGuard)

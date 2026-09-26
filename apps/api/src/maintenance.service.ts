@@ -18,10 +18,12 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
 
   private async run() {
     try {
-      const expired = await this.prisma.asset.findMany({ where: { expiresAt: { lt: new Date() } }, select: { id: true, storageKey: true, userId: true } });
+      const expired = await this.prisma.asset.findMany({ where: { expiresAt: { lt: new Date() } }, select: { id: true, storageKey: true, storageProvider: true, userId: true } });
       for (const asset of expired) {
-        const stored = await this.storage.read(asset.id);
-        if (stored) await unlink(stored.path).catch(() => undefined);
+        if (asset.storageProvider === 'local') {
+          const stored = await this.storage.read(asset.id);
+          if (stored) await unlink(stored.path).catch(() => undefined);
+        }
       }
       if (expired.length) await this.prisma.asset.deleteMany({ where: { id: { in: expired.map((asset) => asset.id) } } });
 

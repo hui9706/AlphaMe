@@ -123,6 +123,7 @@ model Asset {
   userId     String?
   kind       String
   storageKey String   @unique
+  storageProvider String @default("local")
   publicUrl  String
   mimeType   String
   byteSize   Int
@@ -132,6 +133,21 @@ model Asset {
 
   @@index([userId, kind, createdAt])
   @@index([expiresAt])
+}
+
+model StorageConfig {
+  id                  String   @id
+  provider            String   @default("local")
+  enabled             Boolean  @default(false)
+  qiniuAccessKey      String?
+  qiniuSecretKey      String?
+  qiniuBucket         String?
+  qiniuRegion         String?
+  qiniuDomain         String?
+  qiniuPrivate        Boolean  @default(true)
+  qiniuUrlTtlSeconds  Int      @default(2592000)
+  fallbackLocal       Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
 }
 
 model ApiKey {

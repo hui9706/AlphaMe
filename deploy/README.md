@@ -11,10 +11,10 @@ git push origin main
 推送到 `main` 后，GitHub Actions 会自动：
 
 1. 安装依赖并运行全仓库 typecheck/build
-2. 通过 SSH + rsync 同步到 `/www/www1/alphame`
+2. 通过 SSH + rsync 同步到 `/www1/alphame`
 3. 保留服务器上的 `apps/api/.env`
 4. 在服务器执行 Prisma generate、数据库迁移和构建
-5. 将管理后台发布到 `/www/www1/alphame/apps/admin/dist`
+5. 将管理后台发布到 `/www1/alphame/apps/admin/dist`
 6. 重启 PM2 进程 `alphame-api`
 7. 检查 `/v1/health`
 
@@ -33,7 +33,7 @@ git push origin main
 - PM2
 - rsync
 - curl
-- `/www/www1/alphame/apps/api/.env`
+- `/www1/alphame/apps/api/.env`
 - MySQL 和 Redis 已运行
 
 首次部署时如果 PM2 进程不存在，脚本会自动创建 `alphame-api`。

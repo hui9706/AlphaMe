@@ -1,29 +1,58 @@
-import { getAuthCode } from 'zmp-sdk';
+import { getAccessToken, nativeStorage } from 'zmp-sdk';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://pic.alphavn.tech/v1';
 const TOKEN_KEY = 'alphame_access_token';
 
+export function resolveTemplateCoverUrl(coverUrl?: string, cacheKey?: string) {
+  if (!coverUrl || !/^https?:\/\//i.test(coverUrl)) return undefined;
+  if (!cacheKey) return coverUrl;
+  const url = new URL(coverUrl);
+  // Qiniu private download URLs are already signed; adding a cache-busting
+  // query parameter would invalidate the signature.
+  if (url.searchParams.has('token') || url.hostname === 'oss.alphavn.tech') return coverUrl;
+  url.searchParams.set('v', cacheKey);
+  return url.toString();
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getStoredAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers } });
   if (!response.ok) throw new Error(`AlphaMe API ${response.status}`);
   return response.json() as Promise<T>;
 }
 
 export type Session = { accessToken: string; user: { id: string; displayName?: string; avatarUrl?: string; coinAccount?: { available: number; frozen: number } } };
-export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number };
+export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
 export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; coinCost: number; createdAt: string };
 
 export async function loginWithZalo(): Promise<Session> {
-  const { authCode, authCodeVerify } = await getAuthCode();
-  const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ authCode, authCodeVerify }) });
-  localStorage.setItem(TOKEN_KEY, session.accessToken);
+  const accessToken = await getAccessToken();
+  if (!accessToken) throw new Error('ZALO_ACCESS_TOKEN_EMPTY');
+  const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ accessToken }) });
+  setStoredAccessToken(session.accessToken);
   return session;
 }
 
 export function isRealAuthEnabled() {
-  return import.meta.env.VITE_ENABLE_REAL_AUTH === 'true';
+  return import.meta.env.PROD || import.meta.env.VITE_ENABLE_REAL_AUTH === 'true';
 }
+
+export function getStoredAccessToken() {
+  try { return nativeStorage.getItem(TOKEN_KEY) || null; }
+  catch { return localStorage.getItem(TOKEN_KEY); }
+}
+
+export function clearAccessToken() {
+  try { nativeStorage.removeItem(TOKEN_KEY); }
+  catch { localStorage.removeItem(TOKEN_KEY); }
+}
+
+function setStoredAccessToken(token: string) {
+  try { nativeStorage.setItem(TOKEN_KEY, token); }
+  catch { localStorage.setItem(TOKEN_KEY, token); }
+}
+
+export function getMe() { return request<Session['user']>('/auth/me'); }
 
 export function getTemplates() { return request<Template[]>('/templates'); }
 export function getCoinBalance() { return request<{ available: number; frozen: number }>('/coins/balance'); }
