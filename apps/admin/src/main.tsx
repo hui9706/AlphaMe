@@ -209,8 +209,9 @@ function StorageSettings({ t }: { t: typeof copy.zh }) {
         <label>AccessKey<input value={form.qiniuAccessKey} placeholder={storage?.qiniuAccessKey ? '已配置，留空保持不变' : ''} onChange={(event) => setForm({ ...form, qiniuAccessKey: event.target.value })} /></label>
         <label>SecretKey<input type="password" value={form.qiniuSecretKey} placeholder={storage?.qiniuSecretKey ? '已配置，留空保持不变' : ''} onChange={(event) => setForm({ ...form, qiniuSecretKey: event.target.value })} /></label>
         <label>Bucket<input value={form.qiniuBucket} onChange={(event) => setForm({ ...form, qiniuBucket: event.target.value })} required /></label>
-        <label>区域代码<input value={form.qiniuRegion} onChange={(event) => setForm({ ...form, qiniuRegion: event.target.value })} required /></label>
+        <label>区域<select value={form.qiniuRegion} onChange={(event) => setForm({ ...form, qiniuRegion: event.target.value })} required><option value="z0">z0 · 华东-浙江</option><option value="cn-east-2">cn-east-2 · 华东-浙江2</option><option value="z1">z1 · 华北-河北</option><option value="z2">z2 · 华南-广东</option><option value="as0">as0 · 亚太-新加坡</option><option value="na0">na0 · 北美-洛杉矶</option></select></label>
         <label>访问域名<input value={form.qiniuDomain} onChange={(event) => setForm({ ...form, qiniuDomain: event.target.value })} required /></label>
+        <label>七牛上传失败时回退本地<select value={form.fallbackLocal ? 'yes' : 'no'} onChange={(event) => setForm({ ...form, fallbackLocal: event.target.value === 'yes' })}><option value="no">关闭，直接报错</option><option value="yes">开启并记录错误</option></select></label>
       </div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => void test()}>测试连通性</button><button className="primary-button">保存对象存储配置</button>{saved && <small>{saved}</small>}{testResult && <small>{testResult}</small>}</div></form>
     </section>
   </div>;

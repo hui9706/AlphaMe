@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -10,6 +10,7 @@ const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 @Injectable()
 export class StorageService {
+  private readonly logger = new Logger(StorageService.name);
   private readonly root: string;
   private readonly publicBaseUrl: string;
 
@@ -116,7 +117,12 @@ export class StorageService {
         await this.uploadQiniu(storageKey, buffer, mimeType, config);
         return this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, storageProvider: 'qiniu', publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
       } catch (error) {
-        if (!config.fallbackLocal) throw error;
+        const reason = error instanceof Error ? error.message : String(error);
+        if (!config.fallbackLocal || kind === 'template-cover') {
+          this.logger.error(`Qiniu upload failed for ${kind}: ${reason}`);
+          throw new BadGatewayException(`七牛云上传失败：${reason}`);
+        }
+        this.logger.warn(`Qiniu upload failed for ${kind}; falling back to local storage: ${reason}`);
       }
     }
     const path = join(this.root, storageKey);
@@ -137,7 +143,10 @@ export class StorageService {
     form.append('key', key);
     form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), key.split('/').pop() ?? 'image');
     const response = await fetch(this.uploadEndpoint(config.qiniuRegion), { method: 'POST', body: form });
-    if (!response.ok) throw new Error(`Qiniu upload failed with status ${response.status}`);
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
+      throw new Error(`Qiniu upload failed with status ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
     return this.getQiniuUrl(key, config);
   }
 
@@ -153,6 +162,6 @@ export class StorageService {
     return `${signed}&token=${accessKey}:${this.sign(secretKey, signed)}`;
   }
 
-  private uploadEndpoint(region?: string | null) { return ({ as0: 'https://up-as0.qiniup.com', z0: 'https://up-z0.qiniup.com', z1: 'https://up-z1.qiniup.com', z2: 'https://up-z2.qiniup.com', na0: 'https://up-na0.qiniup.com' } as Record<string, string>)[region ?? 'as0'] ?? 'https://up-as0.qiniup.com'; }
+  private uploadEndpoint(region?: string | null) { return ({ as0: 'https://up-as0.qiniup.com', z0: 'https://up-z0.qiniup.com', z1: 'https://up-z1.qiniup.com', z2: 'https://up-z2.qiniup.com', na0: 'https://up-na0.qiniup.com', 'cn-east-2': 'https://up-cn-east-2.qiniup.com' } as Record<string, string>)[region ?? 'as0'] ?? 'https://up-as0.qiniup.com'; }
   private sign(secret: string, value: string) { return createHmac('sha1', secret).update(value).digest('base64url'); }
 }
