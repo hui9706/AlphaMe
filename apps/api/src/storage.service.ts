@@ -134,7 +134,7 @@ export class StorageService {
     const accessKey = this.secrets.decrypt(config.qiniuAccessKey);
     const secretKey = this.secrets.decrypt(config.qiniuSecretKey);
     const deadline = Math.floor(Date.now() / 1000) + 3600;
-    const policy = Buffer.from(JSON.stringify({ scope: `${config.qiniuBucket}:${key}`, deadline, insertOnly: 1 })).toString('base64url');
+    const policy = this.urlSafeBase64(Buffer.from(JSON.stringify({ scope: `${config.qiniuBucket}:${key}`, deadline, insertOnly: 1 })));
     const token = `${accessKey}:${this.sign(secretKey, policy)}:${policy}`;
     const form = new FormData();
     form.append('token', token);
@@ -161,5 +161,6 @@ export class StorageService {
   }
 
   private uploadEndpoint(region?: string | null) { return ({ as0: 'https://up-as0.qiniup.com', z0: 'https://up-z0.qiniup.com', z1: 'https://up-z1.qiniup.com', z2: 'https://up-z2.qiniup.com', na0: 'https://up-na0.qiniup.com', 'cn-east-2': 'https://up-cn-east-2.qiniup.com' } as Record<string, string>)[region ?? 'as0'] ?? 'https://up-as0.qiniup.com'; }
-  private sign(secret: string, value: string) { return createHmac('sha1', secret).update(value).digest('base64url'); }
+  private sign(secret: string, value: string) { return this.urlSafeBase64(createHmac('sha1', secret).update(value).digest()); }
+  private urlSafeBase64(value: Buffer) { return value.toString('base64').replace(/\+/g, '-').replace(/\//g, '_'); }
 }
