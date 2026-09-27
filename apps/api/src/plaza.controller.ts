@@ -12,9 +12,17 @@ export class PlazaController {
   @Get()
   list(@Req() request: { userId?: string }, @Query('limit') limit?: string) { return this.plaza.list(request.userId, Number(limit ?? 30)); }
 
+  @Get('mine')
+  @UseGuards(AuthGuard)
+  mine(@Req() request: { userId?: string }) { return this.plaza.listMine(request.userId!); }
+
   @Post()
   @UseGuards(AuthGuard)
   publish(@Body() body: PublishPlazaWorkDto, @Req() request: { userId?: string }) { return this.plaza.publish(request.userId!, body.generationId); }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard)
+  unpublish(@Param('id') id: string, @Req() request: { userId?: string }) { return this.plaza.unpublish(request.userId!, id); }
 
   @Post(':id/like')
   @UseGuards(AuthGuard)

@@ -5,6 +5,8 @@ import { StorageService } from './storage.service';
 
 class UploadDto {
   @IsString() @MinLength(20) dataUrl!: string;
+
+  @IsString() kind: 'input' | 'avatar' = 'input';
 }
 
 @Controller('uploads')
@@ -14,6 +16,6 @@ export class UploadsController {
 
   @Post('image')
   create(@Body() body: UploadDto, @Req() request: { userId?: string }) {
-    return this.storage.saveDataUrl(request.userId!, body.dataUrl, 'input');
+    return this.storage.saveDataUrl(request.userId!, body.dataUrl, body.kind === 'avatar' ? 'avatar' : 'input');
   }
 }

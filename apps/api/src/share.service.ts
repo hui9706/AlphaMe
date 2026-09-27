@@ -4,10 +4,11 @@ import { randomUUID } from 'node:crypto';
 import { CoinService } from './coin.service';
 import { PrismaService } from './prisma.service';
 import { RewardRiskService } from './reward-risk.service';
+import { ZaloIdentityProvider } from './zalo.identity';
 
 @Injectable()
 export class ShareService {
-  constructor(private readonly prisma: PrismaService, private readonly coin: CoinService, private readonly risk: RewardRiskService) {}
+  constructor(private readonly prisma: PrismaService, private readonly coin: CoinService, private readonly risk: RewardRiskService, private readonly zalo: ZaloIdentityProvider) {}
 
   async create(userId: string, generationId: string) {
     const sharer = await this.prisma.user.findUnique({ where: { id: userId }, select: { zaloOpenId: true } });
@@ -18,12 +19,17 @@ export class ShareService {
     return { shareToken: share.shareToken, generationId: share.generationId };
   }
 
-  async open(userId: string, shareToken: string) {
+  async open(userId: string, shareToken: string, friendAccessToken: string, contextType: 'USER_CHAT' | 'GROUP_CHAT' | '') {
     const friend = await this.prisma.user.findUnique({ where: { id: userId }, select: { zaloOpenId: true } });
     if (!friend?.zaloOpenId) throw new ForbiddenException('Zalo login is required to open a friend share');
     const share = await this.prisma.shareAttribution.findUnique({ where: { shareToken }, include: { reward: true } });
     if (!share) throw new NotFoundException('Share link not found');
     if (share.sharerId === userId) throw new ForbiddenException('The owner cannot claim a share reward');
+    if (contextType !== 'GROUP_CHAT') {
+      const sharer = await this.prisma.user.findUnique({ where: { id: share.sharerId }, select: { zaloOpenId: true } });
+      if (!sharer?.zaloOpenId) throw new ConflictException('Share owner is not linked to Zalo');
+      await this.zalo.assertFriend(friendAccessToken, sharer.zaloOpenId);
+    }
     if (share.friendId === userId) return { opened: true, rewarded: Boolean(share.reward), alreadyOpened: true };
     if (share.friendId && share.friendId !== userId) throw new ConflictException('Share link was opened by another friend');
 

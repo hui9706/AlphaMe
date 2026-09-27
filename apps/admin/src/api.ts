@@ -5,7 +5,7 @@ export type AdminSession = { accessToken: string; admin: { id: string; username:
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
 export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; sortOrder: number; enabled: boolean };
 export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; createdAt: string; user: { displayName?: string | null; zaloOpenId?: string | null }; template: { slug: string; nameVi: string; nameZh: string } };
-export type AdminUser = { id: string; zaloOpenId?: string | null; displayName?: string | null; avatarUrl?: string | null; language: string; createdAt: string; coinAccount?: { available: number; frozen: number } | null };
+export type AdminUser = { id: string; zaloOpenId?: string | null; displayName?: string | null; avatarUrl?: string | null; language: string; isAdmin: boolean; createdAt: string; coinAccount?: { available: number; frozen: number } | null };
 export type AdminCoinAccount = { id: string; zaloOpenId?: string | null; displayName?: string | null; coinAccount?: { available: number; frozen: number; updatedAt: string; ledger: AdminLedgerEntry[] } | null };
 export type AdminLedgerEntry = { id: string; type: string; amount: number; availableAfter: number; frozenAfter: number; note?: string | null; createdAt: string; rewardRecord?: { id: string; type: string; status: string; amount: number; sourceType: string; sourceId: string; note?: string | null; revokedAt?: string | null; revokeReason?: string | null } | null; adminUser?: { id: string; username: string } | null };
 export type AdminReward = { id: string; type: string; status: string; amount: number; sourceType: string; sourceId: string; note?: string | null; createdAt: string; user: { id: string; displayName?: string | null; zaloOpenId?: string | null }; ledger?: { id: string; type: string; amount: number; adminUserId?: string | null; note?: string | null; createdAt: string } | null; revokedByAdmin?: { id: string; username: string } | null };
@@ -31,6 +31,7 @@ export const getStats = () => request<AdminStats>('/admin/stats');
 export const getTemplates = () => request<AdminTemplate[]>('/admin/templates');
 export const getGenerations = () => request<AdminGeneration[]>('/admin/generations');
 export const getUsers = () => request<AdminUser[]>('/admin/users');
+export const setUserAdminStatus = (userId: string, isAdmin: boolean) => request<AdminUser>(`/admin/users/${userId}/admin`, { method: 'PATCH', body: JSON.stringify({ isAdmin }) });
 export const getCoinAccount = (userId: string) => request<AdminCoinAccount>(`/admin/users/${userId}/coins`);
 export const adjustCoin = (userId: string, body: { amount: number; note: string; idempotencyKey: string }) => request('/admin/users/' + userId + '/coins/adjust', { method: 'POST', body: JSON.stringify(body) });
 export const getRewards = (userId?: string, status?: string) => request<AdminReward[]>(`/admin/rewards?${new URLSearchParams({ ...(userId ? { userId } : {}), ...(status ? { status } : {}) }).toString()}`);

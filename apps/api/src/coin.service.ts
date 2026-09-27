@@ -147,14 +147,19 @@ export class CoinService {
   }
 
   async refund(userId: string, amount: number, generationId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const account = await tx.coinAccount.findUnique({ where: { userId } });
-      if (!account || account.frozen < amount) throw new ConflictException('Reserved Coin is missing');
-      const availableAfter = account.available + amount;
-      const frozenAfter = account.frozen - amount;
-      await tx.coinAccount.update({ where: { id: account.id }, data: { available: availableAfter, frozen: frozenAfter } });
-      return tx.coinLedger.create({ data: { accountId: account.id, type: 'REFUND', amount, availableAfter, frozenAfter, idempotencyKey: `refund:${generationId}`, generationId } });
-    });
+    return this.prisma.$transaction((tx) => this.refundInTransaction(tx, userId, amount, generationId));
+  }
+
+  async refundInTransaction(tx: Prisma.TransactionClient, userId: string, amount: number, generationId: string) {
+    const idempotencyKey = `refund:${generationId}`;
+    const existing = await tx.coinLedger.findUnique({ where: { idempotencyKey } });
+    if (existing) return existing;
+    const account = await tx.coinAccount.findUnique({ where: { userId } });
+    if (!account || account.frozen < amount) throw new ConflictException('Reserved Coin is missing');
+    const availableAfter = account.available + amount;
+    const frozenAfter = account.frozen - amount;
+    await tx.coinAccount.update({ where: { id: account.id }, data: { available: availableAfter, frozen: frozenAfter } });
+    return tx.coinLedger.create({ data: { accountId: account.id, type: 'REFUND', amount, availableAfter, frozenAfter, idempotencyKey, generationId } });
   }
 
   private async applyAvailableDelta(tx: Prisma.TransactionClient, userId: string, amount: number, idempotencyKey: string, options: { ledgerType: 'ADMIN_ADJUSTMENT' | 'REWARD' | 'REWARD_REVERSAL'; note?: string; adminUserId?: string; rewardRecordId?: string }) {

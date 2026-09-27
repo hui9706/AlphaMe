@@ -8,14 +8,16 @@ import { ZaloIdentityProvider } from './zalo.identity';
 export class AuthService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly zalo: ZaloIdentityProvider) {}
 
-  async loginWithZalo(accessToken: string) {
+  async loginWithZalo(accessToken: string, profile?: { displayName?: string; avatarUrl?: string }) {
     const identity = process.env.ZALO_AUTH_MODE === 'stub' ? { openId: 'dev:local-user' } : await this.zalo.getIdentity(accessToken);
     const zaloOpenId = identity.openId;
+    const displayName = profile?.displayName?.trim() || identity.displayName;
+    const avatarUrl = profile?.avatarUrl || identity.avatarUrl;
     const user = await this.prisma.user.upsert({
       where: { zaloOpenId },
-      update: { displayName: identity.displayName, avatarUrl: identity.avatarUrl },
-      create: { zaloOpenId, displayName: identity.displayName, avatarUrl: identity.avatarUrl, coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:${zaloOpenId}` } } } } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
+      update: { ...(displayName ? { displayName } : {}), ...(avatarUrl ? { avatarUrl } : {}) },
+      create: { zaloOpenId, displayName, avatarUrl, coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:${zaloOpenId}` } } } } },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
     });
     return this.createSession(user);
   }
@@ -30,7 +32,7 @@ export class AuthService {
           displayName: normalizedUsername,
           coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:account:${normalizedUsername}` } } } },
         },
-        select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
+        select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
       });
       return this.createSession(user);
     } catch (error) {
@@ -48,17 +50,31 @@ export class AuthService {
     }
     const sessionUser = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
     });
     return this.createSession(sessionUser);
   }
 
-  getMe(userId: string) {
-    return this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true, coinAccount: true } });
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
+    return user ? this.decorateUser(user) : null;
   }
 
-  private createSession(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; coinAccount: { available: number; frozen: number } | null }) {
-    return this.jwt.signAsync({ sub: user.id }).then((accessToken) => ({ accessToken, user }));
+  async updateProfile(userId: string, displayName: string, avatarUrl?: string) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { displayName, ...(avatarUrl ? { avatarUrl } : {}) },
+      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+    });
+    return this.decorateUser(user);
+  }
+
+  private createSession(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
+    return this.jwt.signAsync({ sub: user.id }).then((accessToken) => ({ accessToken, user: this.decorateUser(user) }));
+  }
+
+  private decorateUser(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
+    return { ...user, isAdmin: user.isAdmin };
   }
 
   private hashPassword(password: string) {

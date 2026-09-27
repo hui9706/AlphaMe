@@ -22,6 +22,14 @@ export class PlazaService {
     return works.map((work) => ({ ...work, likes: work._count.likes, liked: likedIds.has(work.id), _count: undefined }));
   }
 
+  async listMine(userId: string) {
+    return this.prisma.plazaWork.findMany({
+      where: { userId },
+      orderBy: { publishedAt: 'desc' },
+      select: { id: true, generationId: true },
+    });
+  }
+
   async publish(userId: string, generationId: string) {
     const generation = await this.prisma.generation.findFirst({ where: { id: generationId, userId, status: 'SUCCEEDED' }, select: { id: true, resultAssetUrl: true } });
     if (!generation?.resultAssetUrl) throw new ConflictException('Only successful generations can be published');
@@ -31,6 +39,14 @@ export class PlazaService {
       update: {},
       include: { _count: { select: { likes: true } } },
     });
+  }
+
+  async unpublish(userId: string, plazaWorkId: string) {
+    const work = await this.prisma.plazaWork.findUnique({ where: { id: plazaWorkId }, select: { id: true, userId: true } });
+    if (!work) throw new NotFoundException('Plaza work not found');
+    if (work.userId !== userId) throw new ForbiddenException('You can only remove your own work from the plaza');
+    await this.prisma.plazaWork.delete({ where: { id: plazaWorkId } });
+    return { id: plazaWorkId, unpublished: true };
   }
 
   async like(userId: string, plazaWorkId: string) {

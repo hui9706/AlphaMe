@@ -20,7 +20,8 @@ export class AdminService {
     return Promise.all([this.prisma.user.count(), this.prisma.generation.count(), this.prisma.generation.count({ where: { status: 'SUCCEEDED' } }), this.prisma.generation.count({ where: { status: { in: ['QUEUED', 'PROCESSING'] } } }), this.prisma.coinLedger.aggregate({ _sum: { amount: true }, where: { type: 'GENERATION_CHARGE' } })]).then(([users, generations, succeeded, processing, charged]) => ({ users, generations, succeeded, processing, coinCharged: Math.abs(charged._sum.amount ?? 0) }));
   }
 
-  users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, createdAt: true, coinAccount: true } }); }
+  users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
+  setUserAdminStatus(userId: string, isAdmin: boolean) { return this.prisma.user.update({ where: { id: userId }, data: { isAdmin }, select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
   async coinAccount(userId: string, limit = 100) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

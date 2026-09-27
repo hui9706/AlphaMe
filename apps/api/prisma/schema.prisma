@@ -61,6 +61,7 @@ model User {
   displayName String?
   avatarUrl   String?
   language    String       @default("vi")
+  isAdmin     Boolean      @default(false)
   coinAccount CoinAccount?
   generations Generation[]
   assets      Asset[]

@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import { getRouteParams, getShareableLink, openShareSheet, saveImageToGallery } from 'zmp-sdk';
+import { getAccessToken, getContext, getRouteParams, getShareableLink, openShareSheet, saveImageToGallery } from 'zmp-sdk';
 import './styles.css';
-import { checkIn, clearAccessToken, createGeneration, createShare, getCheckInStatus, getCoinBalance, getCoinLedger, getGenerations, getMe, getPlazaWorks, getStoredAccessToken, getTemplates, isRealAuthEnabled, likePlazaWork, loginWithCredentials, loginWithZalo, openShare, publishPlazaWork, resolveTemplateCoverUrl, unlikePlazaWork, uploadImage, type CoinLedgerEntry, type Generation, type PlazaWork, type Session, type Template } from './api';
+import { checkIn, clearAccessToken, createGeneration, createShare, getCheckInStatus, getCoinBalance, getCoinLedger, getGenerations, getMe, getMyPlazaWorks, getPlazaWorks, getStoredAccessToken, getTemplates, isRealAuthEnabled, likePlazaWork, loginWithCredentials, loginWithZalo, openShare, publishPlazaWork, resolveTemplateCoverUrl, unlikePlazaWork, unpublishPlazaWork, updateProfile, uploadImage, type CoinLedgerEntry, type Generation, type PlazaWork, type Session, type Template } from './api';
 
 type Lang = 'vi' | 'zh';
 const copy = {
@@ -19,7 +19,7 @@ type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'preview';
 function App() {
   const [lang, setLang] = useState<Lang>('vi');
   const [active, setActive] = useState('home');
-  const [styles, setStyles] = useState<typeof defaultStyles>(defaultStyles);
+  const [styles, setStyles] = useState<typeof defaultStyles>(isRealAuthEnabled() ? [] : defaultStyles);
   const [selectedStyleId, setSelectedStyleId] = useState('');
   const [authState, setAuthState] = useState<AuthState>('preview');
   const [session, setSession] = useState<Session['user']>();
@@ -35,7 +35,7 @@ function App() {
   }, []);
   useEffect(() => {
     if (authState !== 'authenticated' || !pendingShareToken) return;
-    void openShare(pendingShareToken).catch(() => undefined);
+    void getAccessToken().then((zaloAccessToken) => openShare(pendingShareToken, zaloAccessToken, getContext()?.type === 'GROUP_CHAT' ? 'GROUP_CHAT' : getContext()?.type === 'USER_CHAT' ? 'USER_CHAT' : '')).catch(() => undefined);
   }, [authState, pendingShareToken]);
   const restoreStoredSession = async () => {
     if (!getStoredAccessToken()) return;
@@ -88,35 +88,61 @@ function App() {
   if (showLogin && authState === 'unauthenticated') return <main className="phone-shell"><section className="app-canvas auth-screen"><AuthView lang={lang} error={authError} onZaloLogin={() => void beginLogin()} onCredentials={(username, password, register) => beginAccountAuth(username, password, register)} /></section></main>;
   return <main className="phone-shell">
     <section className="app-canvas">
-      <header className="topbar"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="top-actions"><button className="lang-switch" onClick={() => setLang(lang === 'vi' ? 'zh' : 'vi')}>{lang === 'vi' ? '中' : 'VI'}</button><button className="coin-pill" onClick={() => authState === 'authenticated' ? setActive('coins') : openLogin()}><span>✦</span> {session?.coinAccount?.available ?? 0} Coin</button><div className="avatar" aria-label={t.navMe}><span className="profile-icon" /></div></div></header>
+      <header className="topbar"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="top-actions"><button className="coin-pill" onClick={() => authState === 'authenticated' ? setActive('coins') : openLogin()}><span>✦</span> {session?.coinAccount?.available ?? 0} Coin</button><button className="avatar" aria-label={t.navMe} onClick={() => setActive('me')}>{session?.avatarUrl ? <img src={session.avatarUrl} alt="" /> : <span className="profile-icon" />}</button></div></header>
       {active === 'home' ? <>
         <section className="hero"><div className="hero-copy"><div className="eyebrow">ALPHAME STUDIO <span>✦</span></div><h1>{t.title.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h1><p>{t.subtitle}</p><button className="primary-cta" onClick={() => setActive('styles')}>{t.create}<span>→</span></button></div><div className="hero-card"><img src="/hero-portrait.png" alt="" /><span className="hero-caption">AlphaMe<br /><em>portrait studio</em></span></div></section>
         <section className="section-block"><div className="section-heading"><div><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div></article>)}</div></section>
-        <button className="social-strip" onClick={() => setActive('friends')}><div className="social-mark">✦</div><div><span className="kicker">02 / SOCIAL AI</span><h2>{t.friends}</h2><p>{lang === 'vi' ? 'Chia sẻ AI của bạn với cộng đồng.' : '把你的 AI 作品分享给广场里的大家。'}</p></div><span className="strip-arrow">→</span></button>
-        <section className="challenge-row"><div><span className="kicker">03 / DAILY</span><h2>{t.challenge}</h2></div><div className="challenge-badge">NEW<br /><strong>24H</strong></div></section>
-      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onGenerationCreated={() => void refreshSession()} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} authenticated={authState === 'authenticated'} /> : active === 'me' ? <PersonalView lang={lang} user={session} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} onCoins={() => setActive('coins')} /> : active === 'coins' ? <CoinView lang={lang} authenticated={authState === 'authenticated'} onBack={() => setActive('me')} onRequireLogin={openLogin} onBalanceChanged={() => void refreshSession()} onWorks={() => setActive('works')} onPlaza={() => setActive('friends')} /> : <PlazaView lang={lang} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} />}
+      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onGenerationCreated={() => void refreshSession()} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} authenticated={authState === 'authenticated'} /> : active === 'me' ? <PersonalView lang={lang} user={session} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} onCoins={() => setActive('coins')} onLanguage={() => setLang(lang === 'vi' ? 'zh' : 'vi')} onProfileUpdated={(next) => setSession(next)} /> : active === 'coins' ? <CoinView lang={lang} authenticated={authState === 'authenticated'} onBack={() => setActive('me')} onRequireLogin={openLogin} onBalanceChanged={() => void refreshSession()} onWorks={() => setActive('works')} onPlaza={() => setActive('friends')} /> : <PlazaView lang={lang} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} />}
       <nav className="bottom-nav">{[["home", t.navHome, '⌂'], ['friends', t.navFriends, '◉'], ['works', t.navWorks, '▧'], ['me', t.navMe, '◎']].map(([id, label, icon]) => <button className={active === id ? 'active' : ''} onClick={() => setActive(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
     </section>
   </main>;
 }
 
-function PersonalView({ lang, user, onLogin, onLogout, onWorks, onCoins }: { lang: Lang; user?: Session['user']; onLogin: () => void; onLogout: () => void; onWorks: () => void; onCoins: () => void }) {
+function PersonalView({ lang, user, onLogin, onLogout, onWorks, onCoins, onLanguage, onProfileUpdated }: { lang: Lang; user?: Session['user']; onLogin: () => void; onLogout: () => void; onWorks: () => void; onCoins: () => void; onLanguage: () => void; onProfileUpdated: (user: Session['user']) => void }) {
+  const [editing, setEditing] = useState(false);
   const zh = lang === 'zh';
   const username = user?.username;
   const displayName = user?.displayName || username || (zh ? 'Zalo 用户' : 'Người dùng Zalo');
   const accountLabel = username ? (zh ? 'AlphaMe 账号' : 'Tài khoản AlphaMe') : (zh ? 'Zalo 授权账号' : 'Tài khoản Zalo');
   const initial = displayName.slice(0, 1).toUpperCase();
+  if (editing && user) return <ProfileEditor lang={lang} user={user} onBack={() => setEditing(false)} onSaved={(next) => { onProfileUpdated(next); setEditing(false); }} />;
   return <section className="create-view personal-view">
-    <div className="create-heading"><span className="kicker">ALPHAME ACCOUNT</span><h1>{zh ? '我的' : 'Cá nhân'}</h1><p>{zh ? '管理你的账户、Coin 和创作记录。' : 'Quản lý tài khoản, Coin và các tác phẩm của bạn.'}</p></div>
-    <div className={`account-profile ${user ? 'signed-in' : 'signed-out'}`}>
-      <div className="account-avatar">{user ? initial : <span className="profile-icon" />}</div>
-      <div className="account-identity"><strong>{user ? displayName : (zh ? '暂未登录' : 'Chưa đăng nhập')}</strong><span>{user ? accountLabel : (zh ? '登录后保存 Coin 和作品' : 'Đăng nhập để lưu Coin và tác phẩm')}</span></div>
-      <span className={`account-state ${user ? 'online' : ''}`}>{user ? (zh ? '已登录' : 'Đã đăng nhập') : (zh ? '访客' : 'Khách')}</span>
+    <div className="account-intro"><div><span className="account-kicker">ALPHAME / {zh ? '个人工作台' : 'KHÔNG GIAN CÁ NHÂN'}</span><h1>{zh ? '我的' : 'Cá nhân'}</h1><p>{zh ? '你的创作身份与灵感资产。' : 'Danh tính sáng tạo và tài sản cảm hứng của bạn.'}</p></div><span className="account-orbit">✦</span></div>
+    <div className={`account-hero-card ${user ? 'signed-in' : 'signed-out'}`}>
+      <div className="account-hero-top"><div className="account-avatar">{user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user ? initial : <span className="profile-icon" />}</div><div className="account-identity"><span className="account-label">{user ? accountLabel : (zh ? '访客模式' : 'Chế độ khách')}</span><strong>{user ? displayName : (zh ? '暂未登录' : 'Chưa đăng nhập')}</strong></div><span className={`account-state ${user ? 'online' : ''}`}><i />{user ? (zh ? '在线' : 'Online') : (zh ? '访客' : 'Khách')}</span></div>
+      <div className="account-hero-bottom"><div><span>{zh ? '创作额度' : 'Hạn mức sáng tạo'}</span><strong><i>✦</i>{user?.coinAccount?.available ?? 0}<small> Coin</small></strong></div><div className="account-progress"><span>{zh ? '可用于生成新作品' : 'Sẵn sàng cho tác phẩm mới'}</span><b><em /></b></div></div>
     </div>
-    {user && <button className="account-summary account-summary-button" onClick={onCoins}><div><span>{zh ? '可用 Coin' : 'Coin khả dụng'}</span><strong><i>✦</i>{user.coinAccount?.available ?? 0}</strong></div><div><span>{zh ? '获取更多' : 'Nhận thêm'}</span><strong className="account-method">{zh ? '签到 / 分享 / 获赞 →' : 'Điểm danh / Chia sẻ / Lượt thích →'}</strong></div></button>}
-    <button className="account-link-row" onClick={onWorks}><span><b>{zh ? '我的作品' : 'Tác phẩm của tôi'}</b><small>{zh ? '查看生成记录和结果' : 'Xem lịch sử tạo ảnh và kết quả'}</small></span><span className="account-chevron">→</span></button>
-    {user ? <button className="account-logout" onClick={onLogout}>{zh ? '退出登录' : 'Đăng xuất'}</button> : <button className="primary-cta account-login" onClick={onLogin}>{zh ? '登录 / 注册' : 'Đăng nhập / Đăng ký'}<span>→</span></button>}
+    {user ? <div className="account-actions"><button className="account-action primary" onClick={() => setEditing(true)}><span className="action-symbol">✎</span><span><b>{zh ? '编辑资料' : 'Chỉnh sửa hồ sơ'}</b><small>{zh ? '昵称与头像' : 'Tên và ảnh đại diện'}</small></span><strong>↗</strong></button><button className="account-action" onClick={onWorks}><span className="action-symbol">▧</span><span><b>{zh ? '我的作品' : 'Tác phẩm của tôi'}</b><small>{zh ? '查看创作记录' : 'Xem lịch sử sáng tạo'}</small></span><strong>↗</strong></button></div> : <button className="primary-cta account-login" onClick={onLogin}>{zh ? '登录 / 注册' : 'Đăng nhập / Đăng ký'}<span>→</span></button>}
+    {user && <button className="account-coin-link" onClick={onCoins}><span><i>✦</i>{zh ? '获取更多 Coin' : 'Nhận thêm Coin'}</span><small>{zh ? '签到 / 分享 / 获赞' : 'Điểm danh / Chia sẻ / Lượt thích'} <b>→</b></small></button>}
+    {user?.isAdmin && <button className="account-action account-language" onClick={onLanguage}><span className="action-symbol">◐</span><span><b>{zh ? '切换语言' : 'Đổi ngôn ngữ'}</b><small>{zh ? '仅管理员可见 · 当前为中文' : 'Chỉ admin nhìn thấy · Hiện tại: Tiếng Việt'}</small></span><strong>{zh ? 'VI' : '中'}</strong></button>}
+    {user && <button className="account-logout" onClick={onLogout}><span>↪</span>{zh ? '退出当前账号' : 'Đăng xuất tài khoản'}</button>}
   </section>;
+}
+
+function ProfileEditor({ lang, user, onBack, onSaved }: { lang: Lang; user: Session['user']; onBack: () => void; onSaved: (user: Session['user']) => void }) {
+  const zh = lang === 'zh';
+  const [displayName, setDisplayName] = useState(user.displayName || user.username || '');
+  const [avatar, setAvatar] = useState(user.avatarUrl || '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const onFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError(zh ? '请选择图片文件。' : 'Vui lòng chọn tệp hình ảnh.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setAvatar(typeof reader.result === 'string' ? reader.result : '');
+    reader.readAsDataURL(file);
+  };
+  const save = async () => {
+    const name = displayName.trim();
+    if (!name) { setError(zh ? '请输入昵称。' : 'Vui lòng nhập tên hiển thị.'); return; }
+    setBusy(true); setError('');
+    try {
+      const uploadedAvatar = avatar.startsWith('data:') ? (await uploadImage(avatar, 'avatar')).publicUrl : avatar || undefined;
+      onSaved(await updateProfile(name, uploadedAvatar));
+    } catch { setError(zh ? '保存失败，请稍后重试。' : 'Không thể lưu, vui lòng thử lại sau.'); }
+    finally { setBusy(false); }
+  };
+  return <section className="create-view personal-view profile-editor"><button className="back-button" onClick={onBack}>← {zh ? '返回我的' : 'Về cá nhân'}</button><div className="create-heading"><h1>{zh ? '编辑资料' : 'Chỉnh sửa hồ sơ'}</h1><p>{zh ? '设置你在 AlphaMe 中展示的昵称和头像。' : 'Đặt tên và ảnh đại diện hiển thị trên AlphaMe.'}</p></div><label className="profile-avatar-picker"><div className="profile-avatar-preview">{avatar ? <img src={avatar} alt="" /> : <span className="profile-icon" />}</div><strong>{zh ? '更换头像' : 'Đổi ảnh đại diện'}</strong><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => onFile(event.target.files?.[0])} /></label><label className="profile-name-field"><span>{zh ? '昵称' : 'Tên hiển thị'}</span><input value={displayName} maxLength={40} onChange={(event) => setDisplayName(event.target.value)} placeholder={zh ? '输入你的昵称' : 'Nhập tên hiển thị'} /></label>{error && <p className="auth-error">{error}</p>}<button className="primary-cta full" disabled={busy} onClick={() => void save()}>{busy ? (zh ? '保存中…' : 'Đang lưu…') : (zh ? '保存修改' : 'Lưu thay đổi')} <span>→</span></button></section>;
 }
 
 function AuthView({ lang, error, onZaloLogin, onCredentials }: { lang: Lang; error: string; onZaloLogin: () => void; onCredentials: (username: string, password: string, register: boolean) => Promise<void> }) {
@@ -145,13 +171,16 @@ function WorksView({ lang, authenticated }: { lang: Lang; authenticated: boolean
   const [savedId, setSavedId] = useState('');
   const [saveErrorId, setSaveErrorId] = useState('');
   const [publishedIds, setPublishedIds] = useState<string[]>([]);
+  const [publishedWorkIds, setPublishedWorkIds] = useState<Record<string, string>>({});
+  const [publishingId, setPublishingId] = useState('');
   const [sharingId, setSharingId] = useState('');
   const [shareErrorId, setShareErrorId] = useState('');
   useEffect(() => {
     if (!authenticated || !isRealAuthEnabled()) return;
-    void Promise.all([getGenerations(), getPlazaWorks()]).then(([generations, plaza]) => {
+    void Promise.all([getGenerations(), getMyPlazaWorks()]).then(([generations, plaza]) => {
       setItems(generations);
-      setPublishedIds(plaza.map((work) => work.generation.id));
+      setPublishedIds(plaza.map((work) => work.generationId));
+      setPublishedWorkIds(Object.fromEntries(plaza.map((work) => [work.generationId, work.id])));
     }).catch(() => undefined);
   }, [authenticated]);
   const saveToGallery = async (item: Generation) => {
@@ -173,7 +202,22 @@ function WorksView({ lang, authenticated }: { lang: Lang; authenticated: boolean
       setSavingId('');
     }
   };
-  const publish = async (item: Generation) => { try { await publishPlazaWork(item.id); setPublishedIds((ids) => ids.includes(item.id) ? ids : [...ids, item.id]); } catch { /* keep the action retryable */ } };
+  const togglePublished = async (item: Generation) => {
+    setPublishingId(item.id);
+    try {
+      const plazaWorkId = publishedWorkIds[item.id];
+      if (plazaWorkId) {
+        await unpublishPlazaWork(plazaWorkId);
+        setPublishedIds((ids) => ids.filter((id) => id !== item.id));
+        setPublishedWorkIds((ids) => { const next = { ...ids }; delete next[item.id]; return next; });
+      } else {
+        const published = await publishPlazaWork(item.id);
+        setPublishedIds((ids) => ids.includes(item.id) ? ids : [...ids, item.id]);
+        setPublishedWorkIds((ids) => ({ ...ids, [item.id]: published.id }));
+      }
+    } catch { /* keep the action retryable */ }
+    finally { setPublishingId(''); }
+  };
   const share = async (item: Generation) => {
     if (!item.resultAssetUrl) return;
     setSharingId(item.id); setShareErrorId('');
@@ -184,7 +228,7 @@ function WorksView({ lang, authenticated }: { lang: Lang; authenticated: boolean
     } catch { setShareErrorId(item.id); }
     finally { setSharingId(''); }
   };
-  return <section className="create-view works-view"><div className="create-heading"><span className="kicker">MY WORKS</span><h1>{zh ? '我的作品' : 'Tác phẩm của tôi'}</h1>{authenticated && <p>{zh ? '把喜欢的作品发布到广场，和更多人分享。' : 'Đăng tác phẩm bạn thích lên quảng trường để chia sẻ cùng mọi người.'}</p>}</div><div className="works-grid">{items.map((item) => <article className="work-card" key={item.id}>{item.resultAssetUrl ? <div className="work-image-frame"><img className="work-image" src={item.resultAssetUrl} alt="" /></div> : <div className="style-art work-placeholder"><span>{item.status === 'PROCESSING' || item.status === 'QUEUED' ? '…' : '!'}</span><div className="art-glow" /></div>}<div className="style-info"><div><h3>{item.status}</h3><p>{new Date(item.createdAt).toLocaleString()}</p></div>{item.resultAssetUrl && <><button className="download-button" type="button" onClick={() => void saveToGallery(item)} disabled={savingId === item.id}>{savingId === item.id ? (zh ? '保存中…' : 'Đang lưu…') : savedId === item.id ? (zh ? '已保存' : 'Đã lưu') : saveErrorId === item.id ? (zh ? '重试下载' : 'Thử lại') : (zh ? '下载到相册' : 'Lưu vào thư viện')}</button><button className={`publish-button ${publishedIds.includes(item.id) ? 'published' : ''}`} type="button" onClick={() => void publish(item)} disabled={publishedIds.includes(item.id)}>{publishedIds.includes(item.id) ? (zh ? '已发布到广场' : 'Đã đăng lên quảng trường') : (zh ? '发布到广场' : 'Đăng lên quảng trường')}</button><button className="share-button" type="button" onClick={() => void share(item)} disabled={sharingId === item.id}>{sharingId === item.id ? (zh ? '打开分享…' : 'Đang mở chia sẻ…') : shareErrorId === item.id ? (zh ? '重试分享' : 'Thử lại chia sẻ') : (zh ? '分享给 Zalo 好友' : 'Chia sẻ cho bạn Zalo')}</button></>}</div></article>)}</div>{items.length === 0 && <p className="auth-error">{authenticated ? (zh ? '暂无作品。' : 'Chưa có tác phẩm.') : (zh ? '请登录后查看作品' : 'Vui lòng đăng nhập để xem tác phẩm.')}</p>}</section>;
+  return <section className="create-view works-view"><div className="create-heading"><h1>{zh ? '我的作品' : 'Tác phẩm của tôi'}</h1>{authenticated && <p>{zh ? '把喜欢的作品发布到广场，和更多人分享。' : 'Đăng tác phẩm bạn thích lên quảng trường để chia sẻ cùng mọi người.'}</p>}</div><div className="works-grid">{items.map((item) => <article className="work-card" key={item.id}>{item.resultAssetUrl ? <div className="work-image-frame"><img className="work-image" src={item.resultAssetUrl} alt="" /></div> : <div className="style-art work-placeholder"><span>{item.status === 'PROCESSING' || item.status === 'QUEUED' ? '…' : '!'}</span><div className="art-glow" /></div>}<div className="style-info"><div><h3>{item.status}</h3><p>{new Date(item.createdAt).toLocaleString()}</p></div>{item.resultAssetUrl && <><button className="download-button" type="button" onClick={() => void saveToGallery(item)} disabled={savingId === item.id}>{savingId === item.id ? (zh ? '保存中…' : 'Đang lưu…') : savedId === item.id ? (zh ? '已保存' : 'Đã lưu') : saveErrorId === item.id ? (zh ? '重试下载' : 'Thử lại') : (zh ? '下载到相册' : 'Lưu vào thư viện')}</button><button className={`publish-button ${publishedIds.includes(item.id) ? 'published' : ''}`} type="button" onClick={() => void togglePublished(item)} disabled={publishingId === item.id}>{publishingId === item.id ? (zh ? '处理中…' : 'Đang xử lý…') : publishedIds.includes(item.id) ? (zh ? '从广场撤回' : 'Gỡ khỏi quảng trường') : (zh ? '发布到广场' : 'Đăng lên quảng trường')}</button><button className="share-button" type="button" onClick={() => void share(item)} disabled={sharingId === item.id}>{sharingId === item.id ? (zh ? '打开分享…' : 'Đang mở chia sẻ…') : shareErrorId === item.id ? (zh ? '重试分享' : 'Thử lại chia sẻ') : (zh ? '分享给 Zalo 好友' : 'Chia sẻ cho bạn Zalo')}</button></>}</div></article>)}</div>{items.length === 0 && <p className="auth-error">{authenticated ? (zh ? '暂无作品。' : 'Chưa có tác phẩm.') : (zh ? '请登录后查看作品' : 'Vui lòng đăng nhập để xem tác phẩm.')}</p>}</section>;
 }
 
 function PlazaView({ lang, authenticated, onRequireLogin }: { lang: Lang; authenticated: boolean; onRequireLogin: () => void }) {
@@ -203,7 +247,7 @@ function PlazaView({ lang, authenticated, onRequireLogin }: { lang: Lang; authen
     } catch { /* leave server state visible and allow retry */ }
     finally { setBusyId(''); }
   };
-  return <section className="create-view plaza-view"><div className="plaza-heading"><div><span className="kicker">SOCIAL AI / 02</span><h1>{zh ? '广场' : 'Quảng trường'}</h1><p>{zh ? '发现大家生成的 AI，也把你的灵感分享出来。' : 'Khám phá AI của cộng đồng và chia sẻ cảm hứng của bạn.'}</p></div><span className="plaza-count">{items.length}<small>{zh ? '件作品' : 'tác phẩm'}</small></span></div>{loading ? <p className="plaza-state">{zh ? '正在加载作品…' : 'Đang tải tác phẩm…'}</p> : error ? <p className="plaza-state">{zh ? '暂时无法加载广场，请重试。' : 'Không thể tải quảng trường, hãy thử lại.'}</p> : items.length === 0 ? <p className="plaza-state">{zh ? '还没有公开作品，成为第一个分享的人吧。' : 'Chưa có tác phẩm công khai. Hãy là người đầu tiên chia sẻ.'}</p> : <div className="plaza-feed">{items.filter((item) => item.generation.resultAssetUrl).map((item) => { const author = item.user.displayName || (zh ? 'AlphaMe 用户' : 'Người dùng AlphaMe'); return <article className="plaza-card" key={item.id}><div className="plaza-image-wrap"><img src={item.generation.resultAssetUrl!} alt={author} /><span className="plaza-chip">{item.liked ? (zh ? '已点赞' : 'Đã thích') : 'AI'}</span></div><div className="plaza-meta"><div className="plaza-author"><span className="author-avatar">{author.slice(0, 1).toUpperCase()}</span><span><strong>{author}</strong><small>{new Date(item.publishedAt).toLocaleDateString()}</small></span></div><button className={`like-button ${item.liked ? 'liked' : ''}`} disabled={busyId === item.id} onClick={() => void toggleLike(item)}>♡ <span>{item.likes}</span></button></div></article>; })}</div>}<p className="plaza-footnote">{zh ? '你的下一幅作品，也可以出现在这里。' : 'Tác phẩm tiếp theo của bạn cũng có thể xuất hiện ở đây.'}</p></section>;
+  return <section className="create-view plaza-view"><div className="plaza-heading"><div><h1>{zh ? '广场' : 'Quảng trường'}</h1><p>{zh ? '发现大家生成的 AI，也把你的灵感分享出来。' : 'Khám phá AI của cộng đồng và chia sẻ cảm hứng của bạn.'}</p></div><span className="plaza-count">{items.length}<small>{zh ? '件作品' : 'tác phẩm'}</small></span></div>{loading ? <p className="plaza-state">{zh ? '正在加载作品…' : 'Đang tải tác phẩm…'}</p> : error ? <p className="plaza-state">{zh ? '暂时无法加载广场，请重试。' : 'Không thể tải quảng trường, hãy thử lại.'}</p> : items.length === 0 ? <p className="plaza-state">{zh ? '还没有公开作品，成为第一个分享的人吧。' : 'Chưa có tác phẩm công khai. Hãy là người đầu tiên chia sẻ.'}</p> : <div className="plaza-feed">{items.filter((item) => item.generation.resultAssetUrl).map((item) => { const author = item.user.displayName || (zh ? 'AlphaMe 用户' : 'Người dùng AlphaMe'); return <article className="plaza-card" key={item.id}><div className="plaza-image-wrap"><img src={item.generation.resultAssetUrl!} alt={author} /><span className="plaza-chip">{item.liked ? (zh ? '已点赞' : 'Đã thích') : 'AI'}</span></div><div className="plaza-meta"><div className="plaza-author"><span className="author-avatar">{author.slice(0, 1).toUpperCase()}</span><span><strong>{author}</strong><small>{new Date(item.publishedAt).toLocaleDateString()}</small></span></div><button className={`like-button ${item.liked ? 'liked' : ''}`} disabled={busyId === item.id} onClick={() => void toggleLike(item)}>♡ <span>{item.likes}</span></button></div></article>; })}</div>}<p className="plaza-footnote">{zh ? '你的下一幅作品，也可以出现在这里。' : 'Tác phẩm tiếp theo của bạn cũng có thể xuất hiện ở đây.'}</p></section>;
 }
 
 function CoinView({ lang, authenticated, onBack, onRequireLogin, onBalanceChanged, onWorks, onPlaza }: { lang: Lang; authenticated: boolean; onBack: () => void; onRequireLogin: () => void; onBalanceChanged: () => void; onWorks: () => void; onPlaza: () => void }) {
@@ -250,6 +294,7 @@ function CreateView({ lang, templateId, authenticated, onRequireLogin, onGenerat
   };
   const generate = async () => {
     if (!authenticated) { onRequireLogin(); return; }
+    if (!templateId) { setError(zh ? '风格还在加载，请稍后重试。' : 'Phong cách đang tải, vui lòng thử lại sau.'); return; }
     if (!dataUrl) { setError(zh ? '请先选择照片。' : 'Vui lòng chọn ảnh trước.'); return; }
     setBusy(true); setError('');
     try {

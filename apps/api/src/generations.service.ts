@@ -25,7 +25,18 @@ export class GenerationsService {
       await this.coin.reserveInTransaction(tx, userId, template.coinCost, `reserve:${generation.id}`, generation.id);
       return generation;
     });
-    await this.queue.add(generation.id);
+    try {
+      await this.queue.add(generation.id);
+    } catch (error) {
+      await this.prisma.$transaction(async (tx) => {
+        const failed = await tx.generation.updateMany({
+          where: { id: generation.id, status: 'QUEUED' },
+          data: { status: 'FAILED', errorCode: 'QUEUE_UNAVAILABLE', errorMessage: error instanceof Error ? error.message.slice(0, 500) : 'Generation queue unavailable' },
+        });
+        if (failed.count) await this.coin.refundInTransaction(tx, userId, generation.coinCost, generation.id);
+      });
+      throw error;
+    }
     return generation;
   }
 }

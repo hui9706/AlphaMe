@@ -18,8 +18,8 @@ export class StorageService {
     this.publicBaseUrl = config.get('PUBLIC_ASSET_BASE_URL', 'http://localhost:3000/v1/assets');
   }
 
-  async saveDataUrl(userId: string, dataUrl: string, kind: 'input' | 'generated') {
-    return this.saveDataUrlToStorage(dataUrl, { userId, kind, retentionDays: kind === 'input' ? 3 / 24 : 30 });
+  async saveDataUrl(userId: string, dataUrl: string, kind: 'input' | 'generated' | 'avatar') {
+    return this.saveDataUrlToStorage(dataUrl, { userId, kind, retentionDays: kind === 'input' ? 3 / 24 : kind === 'generated' ? 30 : undefined });
   }
 
   async saveTemplateCover(dataUrl: string) {
@@ -98,7 +98,7 @@ export class StorageService {
     return { ok: true, message: `连接成功，Bucket「${bucket}」可访问` };
   }
 
-  private async saveDataUrlToStorage(dataUrl: string, options: { userId?: string; kind: 'input' | 'generated' | 'template-cover'; retentionDays?: number }) {
+  private async saveDataUrlToStorage(dataUrl: string, options: { userId?: string; kind: 'input' | 'generated' | 'avatar' | 'template-cover'; retentionDays?: number }) {
     const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/i.exec(dataUrl);
     if (!match) throw new BadRequestException('Only jpeg, png, and webp data URLs are supported');
     const buffer = Buffer.from(match[2], 'base64');
@@ -106,7 +106,7 @@ export class StorageService {
     return this.saveBuffer(options.userId, buffer, match[1].toLowerCase(), options.kind, options.retentionDays);
   }
 
-  private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'template-cover', retentionDays?: number) {
+  private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'avatar' | 'template-cover', retentionDays?: number) {
     const extension = extname(`file.${mimeType.split('/')[1]}`);
     const storageKey = `${kind}/${userId ? `${userId}/` : ''}${randomUUID()}${extension}`;
     const assetId = randomUUID();
