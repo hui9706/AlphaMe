@@ -31,6 +31,7 @@ class StorageTestDto {
 }
 class CoinAdjustmentDto { @IsInt() @Min(-1000000) @Max(1000000) amount!: number; @IsString() @MinLength(1) note!: string; @IsString() @MinLength(1) idempotencyKey!: string; }
 class RewardRevokeDto { @IsString() @MinLength(1) reason!: string; }
+class RiskReviewDto { @IsString() status!: 'REVIEWED' | 'CLEARED'; }
 
 @Controller('admin')
 export class AdminController {
@@ -44,6 +45,7 @@ export class AdminController {
   @Post('users/:id/coins/adjust') @UseGuards(AdminGuard) adjustCoin(@Param('id') id: string, @Body() body: CoinAdjustmentDto, @Req() request: { adminId?: string }) { return this.admin.adjustCoin(id, body.amount, body.note, body.idempotencyKey, request.adminId!); }
   @Get('rewards') @UseGuards(AdminGuard) rewards(@Query('userId') userId?: string, @Query('status') status?: 'GRANTED' | 'REVOKED' | 'BLOCKED', @Query('limit') limit?: string) { return this.admin.rewards(userId, status, Number(limit ?? 100)); }
   @Get('risk-events') @UseGuards(AdminGuard) riskEvents(@Query('status') status?: 'OPEN' | 'REVIEWED' | 'BLOCKED', @Query('limit') limit?: string) { return this.admin.riskEvents(status, Number(limit ?? 100)); }
+  @Patch('risk-events/:id') @UseGuards(AdminGuard) reviewRiskEvent(@Param('id') id: string, @Body() body: RiskReviewDto, @Req() request: { adminId?: string }) { return this.admin.reviewRiskEvent(id, body.status, request.adminId!); }
   @Post('rewards/:id/revoke') @UseGuards(AdminGuard) revokeReward(@Param('id') id: string, @Body() body: RewardRevokeDto, @Req() request: { adminId?: string }) { return this.admin.revokeReward(id, request.adminId!, body.reason); }
   @Get('generations') @UseGuards(AdminGuard) generations(@Query('limit') limit?: string) { return this.admin.generations(Number(limit ?? 50)); }
   @Get('templates') @UseGuards(AdminGuard) templates() { return this.admin.templates(); }
