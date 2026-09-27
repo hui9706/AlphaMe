@@ -65,7 +65,7 @@ export class StorageService {
       qiniuDomain: input.qiniuDomain?.replace(/\/$/, ''),
       qiniuPrivate: input.qiniuPrivate ?? true,
       qiniuUrlTtlSeconds: Math.min(Math.max(input.qiniuUrlTtlSeconds ?? 2592000, 300), 2592000),
-      fallbackLocal: input.fallbackLocal ?? true,
+      fallbackLocal: false,
     };
     return this.prisma.storageConfig.upsert({ where: { id: 'default' }, create: { id: 'default', ...data }, update: data });
   }
@@ -118,11 +118,8 @@ export class StorageService {
         return this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, storageProvider: 'qiniu', publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        if (!config.fallbackLocal || kind === 'template-cover') {
-          this.logger.error(`Qiniu upload failed for ${kind}: ${reason}`);
-          throw new BadGatewayException(`七牛云上传失败：${reason}`);
-        }
-        this.logger.warn(`Qiniu upload failed for ${kind}; falling back to local storage: ${reason}`);
+        this.logger.error(`Qiniu upload failed for ${kind}: ${reason}`);
+        throw new BadGatewayException(`七牛云上传失败：${reason}`);
       }
     }
     const path = join(this.root, storageKey);

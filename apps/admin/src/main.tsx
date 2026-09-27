@@ -194,7 +194,7 @@ function ApiKeys({ t }: { t: typeof copy.zh }) {
 
 function StorageSettings({ t }: { t: typeof copy.zh }) {
   const [storage, setStorage] = useState<AdminStorage | null>(null);
-  const [form, setForm] = useState({ provider: 'qiniu', enabled: true, qiniuAccessKey: '', qiniuSecretKey: '', qiniuBucket: 'picalphavn', qiniuRegion: 'as0', qiniuDomain: 'https://oss.alphavn.tech', qiniuPrivate: true, qiniuUrlTtlSeconds: 2592000, fallbackLocal: true });
+  const [form, setForm] = useState({ provider: 'qiniu', enabled: true, qiniuAccessKey: '', qiniuSecretKey: '', qiniuBucket: 'picalphavn', qiniuRegion: 'as0', qiniuDomain: 'https://oss.alphavn.tech', qiniuPrivate: true, qiniuUrlTtlSeconds: 2592000 });
   const [saved, setSaved] = useState('');
   const [testResult, setTestResult] = useState('');
   useEffect(() => { void api.getStorage().then((value) => { setStorage(value); setForm((current) => ({ ...current, ...value, qiniuAccessKey: '', qiniuSecretKey: '' })); }); }, []);
@@ -203,7 +203,7 @@ function StorageSettings({ t }: { t: typeof copy.zh }) {
   return <div className="content">
     <PageHeader kicker="INFRASTRUCTURE / OBJECT STORAGE" title={t.storage} hint="专门管理七牛云图片存储。API Key 凭据与图片存储凭据分开维护，降低误操作风险。" />
     <section className="config-panel">
-      <div className="config-heading"><div><span className="eyebrow">QINIU OBJECT STORAGE</span><h2>七牛云图片存储</h2><p>私有空间使用临时签名 URL；七牛云上传失败时自动回退本地存储。</p></div><span className={`status ${storage?.enabled ? 'succeeded' : 'paused'}`}>{storage?.enabled ? '已启用' : '未启用'}</span></div>
+      <div className="config-heading"><div><span className="eyebrow">QINIU OBJECT STORAGE</span><h2>七牛云图片存储</h2><p>私有空间使用临时签名 URL；上传失败会返回明确错误，不会保存到服务器本地。</p></div><span className={`status ${storage?.enabled ? 'succeeded' : 'paused'}`}>{storage?.enabled ? '已启用' : '未启用'}</span></div>
       <form onSubmit={(event) => void save(event)}><div className="form-grid">
         <label>启用七牛云<select value={form.enabled ? 'yes' : 'no'} onChange={(event) => setForm({ ...form, enabled: event.target.value === 'yes' })}><option value="yes">启用</option><option value="no">停用</option></select></label>
         <label>AccessKey<input value={form.qiniuAccessKey} placeholder={storage?.qiniuAccessKey ? '已配置，留空保持不变' : ''} onChange={(event) => setForm({ ...form, qiniuAccessKey: event.target.value })} /></label>
@@ -211,7 +211,6 @@ function StorageSettings({ t }: { t: typeof copy.zh }) {
         <label>Bucket<input value={form.qiniuBucket} onChange={(event) => setForm({ ...form, qiniuBucket: event.target.value })} required /></label>
         <label>区域<select value={form.qiniuRegion} onChange={(event) => setForm({ ...form, qiniuRegion: event.target.value })} required><option value="z0">z0 · 华东-浙江</option><option value="cn-east-2">cn-east-2 · 华东-浙江2</option><option value="z1">z1 · 华北-河北</option><option value="z2">z2 · 华南-广东</option><option value="as0">as0 · 亚太-新加坡</option><option value="na0">na0 · 北美-洛杉矶</option></select></label>
         <label>访问域名<input value={form.qiniuDomain} onChange={(event) => setForm({ ...form, qiniuDomain: event.target.value })} required /></label>
-        <label>七牛上传失败时回退本地<select value={form.fallbackLocal ? 'yes' : 'no'} onChange={(event) => setForm({ ...form, fallbackLocal: event.target.value === 'yes' })}><option value="no">关闭，直接报错</option><option value="yes">开启并记录错误</option></select></label>
       </div><div className="form-actions"><button type="button" className="secondary-button" onClick={() => void test()}>测试连通性</button><button className="primary-button">保存对象存储配置</button>{saved && <small>{saved}</small>}{testResult && <small>{testResult}</small>}</div></form>
     </section>
   </div>;
