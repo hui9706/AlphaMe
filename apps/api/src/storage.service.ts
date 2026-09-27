@@ -112,7 +112,8 @@ export class StorageService {
     const storageKey = `${kind}/${userId ? `${userId}/` : ''}${randomUUID()}${extension}`;
     const assetId = randomUUID();
     const config = await this.getStorageConfig();
-    if (config?.enabled && config.provider === 'qiniu') {
+    if (config?.provider === 'qiniu') {
+      if (!config.enabled) throw new BadGatewayException('七牛云存储未启用');
       try {
         await this.uploadQiniu(storageKey, buffer, mimeType, config);
         return this.prisma.asset.create({ data: { id: assetId, userId, kind, storageKey, storageProvider: 'qiniu', publicUrl: `${this.publicBaseUrl}/${assetId}`, mimeType, byteSize: buffer.length, expiresAt: retentionDays ? new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000) : null } });
