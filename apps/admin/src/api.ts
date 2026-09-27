@@ -22,7 +22,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAdminToken();
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers } });
   if (response.status === 401) { clearAdminToken(); throw new Error('ADMIN_UNAUTHORIZED'); }
-  if (!response.ok) throw new Error(`Admin API ${response.status}`);
+  if (!response.ok) {
+    let message = `Admin API ${response.status}`;
+    try {
+      const body = await response.json() as { message?: string | string[] };
+      if (typeof body.message === 'string') message = body.message;
+      else if (Array.isArray(body.message)) message = body.message.join(', ');
+    } catch { /* keep the HTTP status when the server did not return JSON */ }
+    throw new Error(message);
+  }
   return response.json() as Promise<T>;
 }
 
