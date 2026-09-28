@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getAccessToken, getContext, getRouteParams, getShareableLink, openShareSheet, saveImageToGallery } from 'zmp-sdk';
 import './styles.css';
-import { checkIn, clearAccessToken, createGeneration, createShare, getCheckInStatus, getCoinBalance, getCoinLedger, getGenerations, getMe, getMyPlazaWorks, getPlazaWorks, getStoredAccessToken, getTemplates, isRealAuthEnabled, likePlazaWork, loginWithCredentials, loginWithZalo, openShare, publishPlazaWork, resolveTemplateCoverUrl, unlikePlazaWork, unpublishPlazaWork, updateProfile, uploadImage, type CoinLedgerEntry, type Generation, type PlazaWork, type Session, type Template } from './api';
+import { checkIn, clearAccessToken, createGeneration, createShare, getCheckInStatus, getCoinBalance, getCoinLedger, getGenerations, getMe, getMyPlazaWorks, getPlazaWorks, getStoredAccessToken, getTemplates, isRealAuthEnabled, likePlazaWork, linkZaloAccount, loginWithCredentials, loginWithZalo, openShare, publishPlazaWork, resolveTemplateCoverUrl, unlikePlazaWork, unpublishPlazaWork, updateProfile, uploadImage, type CoinLedgerEntry, type Generation, type PlazaWork, type Session, type Template } from './api';
 
 type Lang = 'vi' | 'zh';
 const copy = {
@@ -45,16 +45,27 @@ function App() {
       clearAccessToken(); setSession(undefined); setAuthState('preview');
     }
   };
-  const beginLogin = async () => {
+  const beginZaloAccess = async () => {
     setShowLogin(true); setAuthState('loading'); setAuthError('');
     try {
       const next = await loginWithZalo();
       setSession(next.user); setAuthState('authenticated'); setShowLogin(false);
     } catch (error) {
-      setSession(undefined); setAuthState('unauthenticated');
+      setAuthState('unauthenticated');
       setAuthError(error instanceof Error && error.message === 'ZALO_ACCESS_TOKEN_EMPTY'
-        ? (lang === 'zh' ? 'Zalo 没有返回登录凭证，请重试或检查小程序登录权限。' : 'Zalo không trả về thông tin đăng nhập, vui lòng thử lại.')
-        : (lang === 'zh' ? '登录失败，请重试。' : 'Đăng nhập thất bại, vui lòng thử lại.'));
+        ? (lang === 'zh' ? '无法获取 Zalo 授权，请重试。' : 'Không thể xác thực Zalo, vui lòng thử lại.')
+        : (lang === 'zh' ? '暂时无法关联 Zalo 账号，请稍后重试。' : 'Không thể liên kết tài khoản Zalo, vui lòng thử lại sau.'));
+    }
+  };
+  const beginZaloLink = async () => {
+    try { setSession(await linkZaloAccount()); setAuthError(''); }
+    catch (error) {
+      const status = error instanceof Error ? error.message : '';
+      setAuthError(status === 'API_409'
+        ? (lang === 'zh' ? '这个 Zalo 账号已关联其他 AlphaMe 账号。' : 'Tài khoản Zalo này đã được liên kết với một tài khoản AlphaMe khác.')
+        : status === 'ZALO_ACCESS_TOKEN_EMPTY'
+          ? (lang === 'zh' ? '无法获取 Zalo 授权，请重试。' : 'Không thể xác thực Zalo, vui lòng thử lại.')
+          : (lang === 'zh' ? '关联失败，请稍后重试。' : 'Không thể liên kết tài khoản, vui lòng thử lại.'));
     }
   };
   const beginAccountAuth = async (username: string, password: string, register: boolean) => {
@@ -84,35 +95,35 @@ function App() {
   const logout = () => {
     clearAccessToken(); setSession(undefined); setAuthState('preview'); setShowLogin(false);
   };
-  if (showLogin && authState === 'loading') return <main className="phone-shell"><section className="app-canvas auth-screen"><div className="auth-card"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-spinner" /><p>{lang === 'zh' ? '正在登录…' : 'Đang đăng nhập…'}</p></div></section></main>;
-  if (showLogin && authState === 'unauthenticated') return <main className="phone-shell"><section className="app-canvas auth-screen"><AuthView lang={lang} error={authError} onZaloLogin={() => void beginLogin()} onCredentials={(username, password, register) => beginAccountAuth(username, password, register)} /></section></main>;
+  if (showLogin && authState === 'loading') return <main className="phone-shell"><section className="app-canvas auth-screen"><div className="auth-card"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-spinner" /><p>{lang === 'zh' ? '正在关联账户…' : 'Đang liên kết tài khoản…'}</p></div></section></main>;
+  if (showLogin && authState === 'unauthenticated') return <main className="phone-shell"><section className="app-canvas auth-screen"><AuthView lang={lang} error={authError} onBack={() => { setShowLogin(false); setAuthState('preview'); setActive('me'); }} onZaloAccess={() => void beginZaloAccess()} onCredentials={(username, password) => beginAccountAuth(username, password, false)} /></section></main>;
   return <main className="phone-shell">
     <section className="app-canvas">
       <header className="topbar"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="top-actions"><button className="coin-pill" onClick={() => authState === 'authenticated' ? setActive('coins') : openLogin()}><span>✦</span> {session?.coinAccount?.available ?? 0} Coin</button><button className="avatar" aria-label={t.navMe} onClick={() => setActive('me')}>{session?.avatarUrl ? <img src={session.avatarUrl} alt="" /> : <span className="profile-icon" />}</button></div></header>
       {active === 'home' ? <>
         <section className="hero"><div className="hero-copy"><div className="eyebrow">ALPHAME STUDIO <span>✦</span></div><h1>{t.title.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h1><p>{t.subtitle}</p><button className="primary-cta" onClick={() => setActive('styles')}>{t.create}<span>→</span></button></div><div className="hero-card"><img src="/hero-portrait.png" alt="" /><span className="hero-caption">AlphaMe<br /><em>portrait studio</em></span></div></section>
         <section className="section-block"><div className="section-heading"><div><h2>{t.featured}</h2></div><button className="text-button" onClick={() => setActive('styles')}>{t.all} <span>→</span></button></div><div className="style-grid">{styles.slice(0, 3).map(style => <article className={`style-card ${style.tone}`} key={style.id} onClick={() => { setSelectedStyleId(style.id); setActive('create'); }}><div className="style-art">{style.coverUrl ? <img className="style-cover" src={style.coverUrl} alt="" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span>{style.icon}</span>}<div className="art-glow" /></div><div className="style-info"><h3>{lang === 'vi' ? style.name : style.zh}</h3><p>{style.meta}</p></div></article>)}</div></section>
-      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onGenerationCreated={() => void refreshSession()} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} authenticated={authState === 'authenticated'} /> : active === 'me' ? <PersonalView lang={lang} user={session} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} onCoins={() => setActive('coins')} onLanguage={() => setLang(lang === 'vi' ? 'zh' : 'vi')} onProfileUpdated={(next) => setSession(next)} /> : active === 'coins' ? <CoinView lang={lang} authenticated={authState === 'authenticated'} onBack={() => setActive('me')} onRequireLogin={openLogin} onBalanceChanged={() => void refreshSession()} onWorks={() => setActive('works')} onPlaza={() => setActive('friends')} /> : <PlazaView lang={lang} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} />}
+      </> : active === 'styles' ? <StylePicker lang={lang} styles={styles} onBack={() => setActive('home')} onSelect={(styleId) => { setSelectedStyleId(styleId); setActive('create'); }} /> : active === 'create' ? <CreateView lang={lang} templateId={selectedStyleId} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} onGenerationCreated={() => void refreshSession()} onBack={() => setActive('styles')} /> : active === 'works' ? <WorksView lang={lang} authenticated={authState === 'authenticated'} /> : active === 'me' ? <PersonalView lang={lang} user={session} error={authError} onLinkZalo={() => void beginZaloLink()} onLogin={openLogin} onLogout={logout} onWorks={() => setActive('works')} onCoins={() => setActive('coins')} onLanguage={() => setLang(lang === 'vi' ? 'zh' : 'vi')} onProfileUpdated={(next) => setSession(next)} /> : active === 'coins' ? <CoinView lang={lang} authenticated={authState === 'authenticated'} onBack={() => setActive('me')} onRequireLogin={openLogin} onBalanceChanged={() => void refreshSession()} onWorks={() => setActive('works')} onPlaza={() => setActive('friends')} /> : <PlazaView lang={lang} authenticated={authState === 'authenticated'} onRequireLogin={openLogin} />}
       <nav className="bottom-nav">{[["home", t.navHome, '⌂'], ['friends', t.navFriends, '◉'], ['works', t.navWorks, '▧'], ['me', t.navMe, '◎']].map(([id, label, icon]) => <button className={active === id ? 'active' : ''} onClick={() => setActive(id)} key={id}><span>{icon}</span>{label}</button>)}</nav>
     </section>
   </main>;
 }
 
-function PersonalView({ lang, user, onLogin, onLogout, onWorks, onCoins, onLanguage, onProfileUpdated }: { lang: Lang; user?: Session['user']; onLogin: () => void; onLogout: () => void; onWorks: () => void; onCoins: () => void; onLanguage: () => void; onProfileUpdated: (user: Session['user']) => void }) {
+function PersonalView({ lang, user, error, onLinkZalo, onLogin, onLogout, onWorks, onCoins, onLanguage, onProfileUpdated }: { lang: Lang; user?: Session['user']; error: string; onLinkZalo: () => void; onLogin: () => void; onLogout: () => void; onWorks: () => void; onCoins: () => void; onLanguage: () => void; onProfileUpdated: (user: Session['user']) => void }) {
   const [editing, setEditing] = useState(false);
   const zh = lang === 'zh';
   const username = user?.username;
   const displayName = user?.displayName || username || (zh ? 'Zalo 用户' : 'Người dùng Zalo');
-  const accountLabel = username ? (zh ? 'AlphaMe 账号' : 'Tài khoản AlphaMe') : (zh ? 'Zalo 授权账号' : 'Tài khoản Zalo');
+  const accountLabel = username ? (zh ? 'AlphaMe 账号' : 'Tài khoản AlphaMe') : (zh ? '已关联 Zalo 的账号' : 'Tài khoản đã liên kết Zalo');
   const initial = displayName.slice(0, 1).toUpperCase();
   if (editing && user) return <ProfileEditor lang={lang} user={user} onBack={() => setEditing(false)} onSaved={(next) => { onProfileUpdated(next); setEditing(false); }} />;
   return <section className="create-view personal-view">
-    <div className="account-intro"><div><span className="account-kicker">ALPHAME / {zh ? '个人工作台' : 'KHÔNG GIAN CÁ NHÂN'}</span><h1>{zh ? '我的' : 'Cá nhân'}</h1><p>{zh ? '你的创作身份与灵感资产。' : 'Danh tính sáng tạo và tài sản cảm hứng của bạn.'}</p></div><span className="account-orbit">✦</span></div>
+    <div className="account-intro"><h1>{zh ? '我的' : 'Cá nhân'}</h1><p>{zh ? '你的创作身份与灵感资产。' : 'Danh tính sáng tạo và tài sản cảm hứng của bạn.'}</p></div>
     <div className={`account-hero-card ${user ? 'signed-in' : 'signed-out'}`}>
       <div className="account-hero-top"><div className="account-avatar">{user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user ? initial : <span className="profile-icon" />}</div><div className="account-identity"><span className="account-label">{user ? accountLabel : (zh ? '访客模式' : 'Chế độ khách')}</span><strong>{user ? displayName : (zh ? '暂未登录' : 'Chưa đăng nhập')}</strong></div><span className={`account-state ${user ? 'online' : ''}`}><i />{user ? (zh ? '在线' : 'Online') : (zh ? '访客' : 'Khách')}</span></div>
       <div className="account-hero-bottom"><div><span>{zh ? '创作额度' : 'Hạn mức sáng tạo'}</span><strong><i>✦</i>{user?.coinAccount?.available ?? 0}<small> Coin</small></strong></div><div className="account-progress"><span>{zh ? '可用于生成新作品' : 'Sẵn sàng cho tác phẩm mới'}</span><b><em /></b></div></div>
     </div>
-    {user ? <div className="account-actions"><button className="account-action primary" onClick={() => setEditing(true)}><span className="action-symbol">✎</span><span><b>{zh ? '编辑资料' : 'Chỉnh sửa hồ sơ'}</b><small>{zh ? '昵称与头像' : 'Tên và ảnh đại diện'}</small></span><strong>↗</strong></button><button className="account-action" onClick={onWorks}><span className="action-symbol">▧</span><span><b>{zh ? '我的作品' : 'Tác phẩm của tôi'}</b><small>{zh ? '查看创作记录' : 'Xem lịch sử sáng tạo'}</small></span><strong>↗</strong></button></div> : <button className="primary-cta account-login" onClick={onLogin}>{zh ? '登录 / 注册' : 'Đăng nhập / Đăng ký'}<span>→</span></button>}
+    {user ? <><div className="account-actions"><button className="account-action primary" onClick={() => setEditing(true)}><span className="action-symbol">✎</span><span><b>{zh ? '编辑资料' : 'Chỉnh sửa hồ sơ'}</b><small>{zh ? '昵称与头像' : 'Tên và ảnh đại diện'}</small></span><strong>↗</strong></button><button className="account-action" onClick={onWorks}><span className="action-symbol">▧</span><span><b>{zh ? '我的作品' : 'Tác phẩm của tôi'}</b><small>{zh ? '查看创作记录' : 'Xem lịch sử sáng tạo'}</small></span><strong>↗</strong></button></div>{!user.zaloLinked && <button className="account-link-row" onClick={onLinkZalo}><span><b>{zh ? '关联 Zalo 账号' : 'Liên kết tài khoản'}</b><small>{zh ? '将 Zalo 身份绑定到此 AlphaMe 账号' : 'Liên kết Zalo với tài khoản AlphaMe này'}</small></span><strong>→</strong></button>}{user.zaloLinked && <p className="account-linked-note">{zh ? '已关联 Zalo 账号' : 'Đã liên kết tài khoản Zalo'}</p>}{error && <p className="auth-error">{error}</p>}</> : <button className="primary-cta account-login" onClick={onLogin}>{zh ? '关联 Zalo 账号' : 'Liên kết tài khoản'}<span>→</span></button>}
     {user && <button className="account-coin-link" onClick={onCoins}><span><i>✦</i>{zh ? '获取更多 Coin' : 'Nhận thêm Coin'}</span><small>{zh ? '签到 / 分享 / 获赞' : 'Điểm danh / Chia sẻ / Lượt thích'} <b>→</b></small></button>}
     {user?.isAdmin && <button className="account-action account-language" onClick={onLanguage}><span className="action-symbol">◐</span><span><b>{zh ? '切换语言' : 'Đổi ngôn ngữ'}</b><small>{zh ? '仅管理员可见 · 当前为中文' : 'Chỉ admin nhìn thấy · Hiện tại: Tiếng Việt'}</small></span><strong>{zh ? 'VI' : '中'}</strong></button>}
     {user && <button className="account-logout" onClick={onLogout}><span>↪</span>{zh ? '退出当前账号' : 'Đăng xuất tài khoản'}</button>}
@@ -145,13 +156,13 @@ function ProfileEditor({ lang, user, onBack, onSaved }: { lang: Lang; user: Sess
   return <section className="create-view personal-view profile-editor"><button className="back-button" onClick={onBack}>← {zh ? '返回我的' : 'Về cá nhân'}</button><div className="create-heading"><h1>{zh ? '编辑资料' : 'Chỉnh sửa hồ sơ'}</h1><p>{zh ? '设置你在 AlphaMe 中展示的昵称和头像。' : 'Đặt tên và ảnh đại diện hiển thị trên AlphaMe.'}</p></div><label className="profile-avatar-picker"><div className="profile-avatar-preview">{avatar ? <img src={avatar} alt="" /> : <span className="profile-icon" />}</div><strong>{zh ? '更换头像' : 'Đổi ảnh đại diện'}</strong><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => onFile(event.target.files?.[0])} /></label><label className="profile-name-field"><span>{zh ? '昵称' : 'Tên hiển thị'}</span><input value={displayName} maxLength={40} onChange={(event) => setDisplayName(event.target.value)} placeholder={zh ? '输入你的昵称' : 'Nhập tên hiển thị'} /></label>{error && <p className="auth-error">{error}</p>}<button className="primary-cta full" disabled={busy} onClick={() => void save()}>{busy ? (zh ? '保存中…' : 'Đang lưu…') : (zh ? '保存修改' : 'Lưu thay đổi')} <span>→</span></button></section>;
 }
 
-function AuthView({ lang, error, onZaloLogin, onCredentials }: { lang: Lang; error: string; onZaloLogin: () => void; onCredentials: (username: string, password: string, register: boolean) => Promise<void> }) {
+function AuthView({ lang, error, onBack, onZaloAccess, onCredentials }: { lang: Lang; error: string; onBack: () => void; onZaloAccess: () => void; onCredentials: (username: string, password: string) => Promise<void> }) {
   const zh = lang === 'zh';
-  const [register, setRegister] = useState(false);
+  const [showExistingAccount, setShowExistingAccount] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
   const submit = (event: FormEvent) => {
     event.preventDefault(); setFormError('');
     if (username.trim().length < 3 || password.length < 8) {
@@ -159,9 +170,9 @@ function AuthView({ lang, error, onZaloLogin, onCredentials }: { lang: Lang; err
       return;
     }
     setSubmitting(true);
-    void onCredentials(username.trim(), password, register).finally(() => setSubmitting(false));
+    void onCredentials(username.trim(), password).finally(() => setSubmitting(false));
   };
-  return <div className="auth-card"><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-copy"><span className="kicker">ALPHAME STUDIO</span><h1>{zh ? '登录后开始创作' : 'Đăng nhập để bắt đầu'}</h1><p>{zh ? '使用 Zalo 或 AlphaMe 账号登录，保存你的作品和 Coin。' : 'Đăng nhập bằng Zalo hoặc tài khoản AlphaMe để lưu tác phẩm và Coin.'}</p></div><button className="primary-cta full" onClick={onZaloLogin} disabled={submitting}>{zh ? '使用 Zalo 授权登录' : 'Đăng nhập bằng Zalo'} <span>→</span></button><div className="auth-divider"><span>{zh ? '或使用账号' : 'HOẶC DÙNG TÀI KHOẢN'}</span></div><form className="auth-form" onSubmit={submit}><label>{zh ? '用户名' : 'Tên đăng nhập'}<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" maxLength={24} required /></label><label>{zh ? '密码' : 'Mật khẩu'}<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={8} maxLength={128} required /></label>{(formError || error) && <p className="auth-error">{formError || error}</p>}<button className="account-submit" type="submit" disabled={submitting}>{submitting ? (zh ? '请稍候…' : 'Đang xử lý…') : register ? (zh ? '注册并登录' : 'Đăng ký và đăng nhập') : (zh ? '用户名密码登录' : 'Đăng nhập')}</button></form><button className="auth-mode-toggle" disabled={submitting} onClick={() => { setRegister(!register); setFormError(''); }}>{register ? (zh ? '已有账号？返回登录' : 'Đã có tài khoản? Đăng nhập') : (zh ? '还没有账号？立即注册' : 'Chưa có tài khoản? Đăng ký ngay')}</button></div>;
+  return <div className="auth-card with-back"><button className="auth-back" onClick={onBack}><span aria-hidden="true">←</span>{zh ? '返回个人页' : 'Cá nhân'}</button><div className="brand-lockup"><img src="/alphame-logo.png" /><span>AlphaMe</span></div><div className="auth-copy"><span className="kicker">ALPHAME STUDIO</span><h1>{zh ? '关联账户，开始创作' : 'Liên kết tài khoản để bắt đầu'}</h1><p>{zh ? '授权 Zalo 后即可使用 AlphaMe。首次使用会自动创建账户，作品和 Coin 会保存在同一账户中。' : 'Xác thực bằng Zalo để sử dụng AlphaMe. Tài khoản sẽ được tạo tự động trong lần đầu và lưu tác phẩm, Coin tại cùng một tài khoản.'}</p></div><button className="primary-cta full" onClick={onZaloAccess} disabled={submitting}>{zh ? '关联 Zalo 账号' : 'Liên kết tài khoản'}<span>→</span></button>{error && <p className="auth-error">{error}</p>}<button className="auth-mode-toggle" disabled={submitting} onClick={() => setShowExistingAccount(!showExistingAccount)}>{showExistingAccount ? (zh ? '返回 Zalo 关联' : 'Quay lại liên kết Zalo') : (zh ? '已有 AlphaMe 账号？' : 'Đã có tài khoản AlphaMe?')}</button>{showExistingAccount && <><div className="auth-divider"><span>{zh ? '登录已有账号' : 'ĐĂNG NHẬP TÀI KHOẢN CŨ'}</span></div><form className="auth-form" onSubmit={submit}><label>{zh ? '用户名' : 'Tên đăng nhập'}<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" maxLength={24} required /></label><label>{zh ? '密码' : 'Mật khẩu'}<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" minLength={8} maxLength={128} required /></label>{formError && <p className="auth-error">{formError}</p>}<button className="account-submit" type="submit" disabled={submitting}>{submitting ? (zh ? '请稍候…' : 'Đang xử lý…') : (zh ? '登录' : 'Đăng nhập')}</button></form></>}</div>;
 }
 
 function WorksView({ lang, authenticated }: { lang: Lang; authenticated: boolean }) {

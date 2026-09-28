@@ -17,9 +17,30 @@ export class AuthService {
       where: { zaloOpenId },
       update: { ...(displayName ? { displayName } : {}), ...(avatarUrl ? { avatarUrl } : {}) },
       create: { zaloOpenId, displayName, avatarUrl, coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:${zaloOpenId}` } } } } },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+      select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
     });
     return this.createSession(user);
+  }
+
+  async linkZaloAccount(userId: string, accessToken: string) {
+    const identity = process.env.ZALO_AUTH_MODE === 'stub' ? { openId: 'dev:local-user' } : await this.zalo.getIdentity(accessToken);
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, zaloOpenId: true } });
+    if (!current) throw new UnauthorizedException('Account not found');
+    if (current.zaloOpenId && current.zaloOpenId !== identity.openId) throw new ConflictException('A different Zalo account is already linked');
+    const owner = await this.prisma.user.findUnique({ where: { zaloOpenId: identity.openId }, select: { id: true } });
+    if (owner && owner.id !== userId) throw new ConflictException('This Zalo account is linked to another AlphaMe account');
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { zaloOpenId: identity.openId },
+        select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+      }).then((user) => this.decorateUser(user));
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        throw new ConflictException('This Zalo account is linked to another AlphaMe account');
+      }
+      throw error;
+    }
   }
 
   async register(username: string, password: string) {
@@ -32,7 +53,7 @@ export class AuthService {
           displayName: normalizedUsername,
           coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:account:${normalizedUsername}` } } } },
         },
-        select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+        select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
       });
       return this.createSession(user);
     } catch (error) {
@@ -50,13 +71,13 @@ export class AuthService {
     }
     const sessionUser = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+      select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
     });
     return this.createSession(sessionUser);
   }
 
   async getMe(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
     return user ? this.decorateUser(user) : null;
   }
 
@@ -64,17 +85,17 @@ export class AuthService {
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { displayName, ...(avatarUrl ? { avatarUrl } : {}) },
-      select: { id: true, username: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+      select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
     });
     return this.decorateUser(user);
   }
 
-  private createSession(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
+  private createSession(user: { id: string; username: string | null; zaloOpenId?: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
     return this.jwt.signAsync({ sub: user.id }).then((accessToken) => ({ accessToken, user: this.decorateUser(user) }));
   }
 
-  private decorateUser(user: { id: string; username: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
-    return { ...user, isAdmin: user.isAdmin };
+  private decorateUser(user: { id: string; username: string | null; zaloOpenId?: string | null; displayName: string | null; avatarUrl: string | null; isAdmin: boolean; coinAccount: { available: number; frozen: number } | null }) {
+    return { id: user.id, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, isAdmin: user.isAdmin, zaloLinked: Boolean(user.zaloOpenId), coinAccount: user.coinAccount };
   }
 
   private hashPassword(password: string) {

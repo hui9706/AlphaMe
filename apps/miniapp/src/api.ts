@@ -21,7 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null; isAdmin?: boolean } };
+export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null; isAdmin?: boolean; zaloLinked?: boolean } };
 export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
 export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; coinCost: number; createdAt: string };
 export type PlazaWork = { id: string; publishedAt: string; user: { id: string; displayName?: string | null; avatarUrl?: string | null }; generation: { id: string; resultAssetUrl?: string | null; createdAt: string }; likes: number; liked: boolean };
@@ -41,6 +41,12 @@ export async function loginWithZalo(): Promise<Session> {
   const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ accessToken, ...profile }) });
   setStoredAccessToken(session.accessToken);
   return session;
+}
+
+export async function linkZaloAccount() {
+  const accessToken = await getAccessToken();
+  if (!accessToken) throw new Error('ZALO_ACCESS_TOKEN_EMPTY');
+  return request<Session['user']>('/auth/link-zalo', { method: 'POST', body: JSON.stringify({ accessToken }) });
 }
 
 export async function loginWithCredentials(username: string, password: string, register = false): Promise<Session> {

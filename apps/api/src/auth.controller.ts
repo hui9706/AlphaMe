@@ -19,6 +19,12 @@ class ZaloLoginDto {
   avatarUrl?: string;
 }
 
+class LinkZaloDto {
+  @IsString()
+  @MinLength(1)
+  accessToken!: string;
+}
+
 class CredentialsDto {
   @IsString()
   @MinLength(3)
@@ -50,6 +56,10 @@ export class AuthController {
 
   @Post('zalo')
   login(@Body() body: ZaloLoginDto) { return this.auth.loginWithZalo(body.accessToken, { displayName: body.displayName, avatarUrl: body.avatarUrl }); }
+
+  @Post('link-zalo')
+  @UseGuards(AuthGuard)
+  linkZalo(@Body() body: LinkZaloDto, @Req() request: { userId?: string }) { return this.auth.linkZaloAccount(request.userId!, body.accessToken); }
 
   @Post('register')
   register(@Body() body: CredentialsDto) { return this.auth.register(body.username, body.password); }
