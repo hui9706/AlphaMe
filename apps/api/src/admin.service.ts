@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from './prisma.service';
@@ -16,12 +16,49 @@ export class AdminService {
     return { accessToken: await this.jwt.signAsync({ sub: admin.id, scope: 'admin', role: admin.role }), admin: { id: admin.id, username: admin.username, role: admin.role } };
   }
 
+  async changePassword(adminId: string, currentPassword: string, newPassword: string) {
+    const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId } });
+    if (!admin || !admin.enabled) throw new UnauthorizedException('Admin account is unavailable');
+    if (!this.verifyPassword(currentPassword, admin.passwordHash)) throw new BadRequestException('Current password is incorrect');
+    await this.prisma.adminUser.update({ where: { id: admin.id }, data: { passwordHash: AdminService.hashPassword(newPassword) } });
+    return { ok: true };
+  }
+
   stats() {
     return Promise.all([this.prisma.user.count(), this.prisma.generation.count(), this.prisma.generation.count({ where: { status: 'SUCCEEDED' } }), this.prisma.generation.count({ where: { status: { in: ['QUEUED', 'PROCESSING'] } } }), this.prisma.coinLedger.aggregate({ _sum: { amount: true }, where: { type: 'GENERATION_CHARGE' } })]).then(([users, generations, succeeded, processing, charged]) => ({ users, generations, succeeded, processing, coinCharged: Math.abs(charged._sum.amount ?? 0) }));
   }
 
-  users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
-  setUserAdminStatus(userId: string, isAdmin: boolean) { return this.prisma.user.update({ where: { id: userId }, data: { isAdmin }, select: { id: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
+  users(limit = 50) { return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
+  async createUser(input: { username: string; password: string; displayName?: string; language?: string; initialCoin?: number }) {
+    const username = input.username.trim().toLowerCase();
+    const initialCoin = input.initialCoin ?? 10;
+    try {
+      return await this.prisma.user.create({
+        data: {
+          username,
+          passwordHash: AdminService.hashPassword(input.password),
+          displayName: input.displayName?.trim() || username,
+          language: input.language ?? 'vi',
+          coinAccount: { create: { available: initialCoin, ...(initialCoin > 0 ? { ledger: { create: { type: 'INITIAL_GRANT', amount: initialCoin, availableAfter: initialCoin, frozenAfter: 0, idempotencyKey: `initial:account:${username}` } } } : {}) } },
+        },
+        select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true },
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') throw new ConflictException('Username is already taken');
+      throw error;
+    }
+  }
+  async resetUserPassword(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.username) throw new BadRequestException('This user does not have a username and password account');
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: AdminService.hashPassword(password) },
+      select: { id: true, username: true, displayName: true },
+    });
+  }
+  setUserAdminStatus(userId: string, isAdmin: boolean) { return this.prisma.user.update({ where: { id: userId }, data: { isAdmin }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
   async coinAccount(userId: string, limit = 100) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
