@@ -23,8 +23,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null; isAdmin?: boolean; zaloLinked?: boolean } };
 export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
-export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; coinCost: number; createdAt: string };
-export type PlazaWork = { id: string; publishedAt: string; user: { id: string; displayName?: string | null; avatarUrl?: string | null }; generation: { id: string; resultAssetUrl?: string | null; createdAt: string }; likes: number; liked: boolean };
+export type HomeHeroImages = { leftUrl?: string | null; centerUrl?: string | null; rightUrl?: string | null };
+export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; resultPreviewAssetUrl?: string; coinCost: number; createdAt: string };
+export type PlazaWork = { id: string; publishedAt: string; user: { id: string; displayName?: string | null; avatarUrl?: string | null }; generation: { id: string; resultAssetUrl?: string | null; resultPreviewAssetUrl?: string | null; createdAt: string }; likes: number; liked: boolean };
 export type CoinLedgerEntry = { id: string; type: string; amount: number; availableAfter: number; frozenAfter: number; generationId?: string | null; note?: string | null; createdAt: string; rewardType?: string | null; rewardStatus?: string | null; rewardSourceType?: string | null; revokeReason?: string | null };
 export type CheckInStatus = { date: string; checkedIn: boolean; rewardAmount: number };
 
@@ -81,6 +82,7 @@ export function getMe() { return request<Session['user']>('/auth/me'); }
 export function updateProfile(displayName: string, avatarUrl?: string) { return request<Session['user']>('/auth/profile', { method: 'POST', body: JSON.stringify({ displayName, ...(avatarUrl ? { avatarUrl } : {}) }) }); }
 
 export function getTemplates() { return request<Template[]>('/templates'); }
+export function getHomeHeroImages() { return request<HomeHeroImages>('/home/hero-images'); }
 export function getCoinBalance() { return request<{ available: number; frozen: number }>('/coins/balance'); }
 export function getCoinLedger(limit = 50) { return request<CoinLedgerEntry[]>(`/coins/ledger?limit=${limit}`); }
 export function getCheckInStatus() { return request<CheckInStatus>('/coins/check-in/status'); }

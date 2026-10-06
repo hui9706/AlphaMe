@@ -4,7 +4,8 @@ const TOKEN_KEY = 'alphame_admin_access_token';
 export type AdminSession = { accessToken: string; admin: { id: string; username: string; role: string } };
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
 export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; sortOrder: number; enabled: boolean };
-export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; createdAt: string; user: { displayName?: string | null; zaloOpenId?: string | null }; template: { slug: string; nameVi: string; nameZh: string } };
+export type AdminHomeHeroImages = { leftUrl: string | null; centerUrl: string | null; rightUrl: string | null };
+export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; errorCode?: string | null; errorMessage?: string | null; createdAt: string; user: { displayName?: string | null; zaloOpenId?: string | null }; template: { slug: string; nameVi: string; nameZh: string } };
 export type AdminUser = { id: string; username?: string | null; zaloOpenId?: string | null; displayName?: string | null; avatarUrl?: string | null; language: string; isAdmin: boolean; createdAt: string; coinAccount?: { available: number; frozen: number } | null };
 export type AdminCoinAccount = { id: string; zaloOpenId?: string | null; displayName?: string | null; coinAccount?: { available: number; frozen: number; updatedAt: string; ledger: AdminLedgerEntry[] } | null };
 export type AdminLedgerEntry = { id: string; type: string; amount: number; availableAfter: number; frozenAfter: number; note?: string | null; createdAt: string; rewardRecord?: { id: string; type: string; status: string; amount: number; sourceType: string; sourceId: string; note?: string | null; revokedAt?: string | null; revokeReason?: string | null } | null; adminUser?: { id: string; username: string } | null };
@@ -38,6 +39,8 @@ export async function login(username: string, password: string) { const session 
 export const changeAdminPassword = (currentPassword: string, newPassword: string) => request<{ ok: true }>('/admin/auth/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
 export const getStats = () => request<AdminStats>('/admin/stats');
 export const getTemplates = () => request<AdminTemplate[]>('/admin/templates');
+export const getHomeHeroImages = () => request<AdminHomeHeroImages>('/admin/home-hero-images');
+export const updateHomeHeroImages = (body: { leftUrl: string; centerUrl: string; rightUrl: string }) => request<AdminHomeHeroImages>('/admin/home-hero-images', { method: 'PATCH', body: JSON.stringify(body) });
 export const getGenerations = () => request<AdminGeneration[]>('/admin/generations');
 export const getUsers = () => request<AdminUser[]>('/admin/users');
 export const createUser = (body: { username: string; password: string; displayName?: string; language: 'vi' | 'zh'; initialCoin: number }) => request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) });

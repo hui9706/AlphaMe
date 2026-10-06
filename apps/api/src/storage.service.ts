@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 import { SecretsService } from './secrets.service';
+import sharp from 'sharp';
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
@@ -24,7 +25,22 @@ export class StorageService {
   }
 
   async saveTemplateCover(dataUrl: string) {
-    return this.saveDataUrlToStorage(dataUrl, { kind: 'template-cover' });
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/i.exec(dataUrl);
+    if (!match) throw new BadRequestException('Only jpeg, png, and webp data URLs are supported');
+    const original = Buffer.from(match[2], 'base64');
+    if (!original.length || original.length > MAX_UPLOAD_BYTES) throw new BadRequestException('Image must be between 1 byte and 15MB');
+
+    let optimized: Buffer;
+    try {
+      optimized = await sharp(original)
+        .rotate()
+        .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 82, effort: 4 })
+        .toBuffer();
+    } catch {
+      throw new BadRequestException('无法识别图片，请上传有效的 JPEG、PNG 或 WebP 图片');
+    }
+    return this.saveBuffer(undefined, optimized, 'image/webp', 'template-cover');
   }
 
   async importRemote(userId: string, url: string, kind: 'generated', retentionDays: number) {
@@ -35,6 +51,21 @@ export class StorageService {
     const contentType = (response.headers.get('content-type') ?? 'image/jpeg').split(';')[0].toLowerCase();
     const mimeType = ['image/jpeg', 'image/png', 'image/webp'].includes(contentType) ? contentType : 'image/jpeg';
     return this.saveBuffer(userId, buffer, mimeType, kind, retentionDays);
+  }
+
+  async importGenerated(userId: string, url: string, retentionDays: number) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Asset download failed with status ${response.status}`);
+    const original = Buffer.from(await response.arrayBuffer());
+    if (!original.length || original.length > MAX_UPLOAD_BYTES) throw new Error('Generated image exceeds storage limit');
+    const contentType = (response.headers.get('content-type') ?? 'image/jpeg').split(';')[0].toLowerCase();
+    const mimeType = ['image/jpeg', 'image/png', 'image/webp'].includes(contentType) ? contentType : 'image/jpeg';
+    const [originalAsset, previewBuffer] = await Promise.all([
+      this.saveBuffer(userId, original, mimeType, 'generated', retentionDays),
+      sharp(original).rotate().resize(1280, 1280, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80, effort: 4 }).toBuffer(),
+    ]);
+    const previewAsset = await this.saveBuffer(userId, previewBuffer, 'image/webp', 'generated-preview', retentionDays);
+    return { original: originalAsset, preview: previewAsset };
   }
 
   async read(assetId: string) {
@@ -107,7 +138,7 @@ export class StorageService {
     return this.saveBuffer(options.userId, buffer, match[1].toLowerCase(), options.kind, options.retentionDays);
   }
 
-  private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'avatar' | 'template-cover', retentionDays?: number) {
+  private async saveBuffer(userId: string | undefined, buffer: Buffer, mimeType: string, kind: 'input' | 'generated' | 'generated-preview' | 'avatar' | 'template-cover', retentionDays?: number) {
     const extension = extname(`file.${mimeType.split('/')[1]}`);
     const storageKey = `${kind}/${userId ? `${userId}/` : ''}${randomUUID()}${extension}`;
     const assetId = randomUUID();

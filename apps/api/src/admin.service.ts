@@ -93,6 +93,11 @@ export class AdminService {
   reviewRiskEvent(id: string, status: 'REVIEWED' | 'CLEARED', adminUserId: string) { return this.prisma.rewardRiskEvent.update({ where: { id }, data: { status, reviewedByAdminId: adminUserId, reviewedAt: new Date() }, include: { user: { select: { id: true, displayName: true, zaloOpenId: true } }, reviewedByAdmin: { select: { id: true, username: true } } } }); }
   generations(limit = 50) { return this.prisma.generation.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), include: { user: { select: { displayName: true, zaloOpenId: true } }, template: { select: { slug: true, nameVi: true, nameZh: true } } } }); }
   templates() { return this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }); }
+  async homeHeroImages() { return await this.prisma.homeHeroImages.findUnique({ where: { id: 'default' }, select: { leftUrl: true, centerUrl: true, rightUrl: true } }) ?? { leftUrl: '', centerUrl: '', rightUrl: '' }; }
+  updateHomeHeroImages(data: { leftUrl?: string; centerUrl?: string; rightUrl?: string }) {
+    const values = { leftUrl: data.leftUrl?.trim() || null, centerUrl: data.centerUrl?.trim() || null, rightUrl: data.rightUrl?.trim() || null };
+    return this.prisma.homeHeroImages.upsert({ where: { id: 'default' }, create: { id: 'default', ...values }, update: values, select: { leftUrl: true, centerUrl: true, rightUrl: true } });
+  }
   createTemplate(data: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost?: number; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.coinCost ?? 10 } }); }
   updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean; sortOrder: number }>) { return this.prisma.template.update({ where: { id }, data }); }
   async reorderTemplates(templateIds: string[]) {

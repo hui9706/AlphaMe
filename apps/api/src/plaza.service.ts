@@ -14,7 +14,7 @@ export class PlazaService {
       take: Math.min(Math.max(limit, 1), 100),
       include: {
         user: { select: { id: true, displayName: true, avatarUrl: true } },
-        generation: { select: { id: true, resultAssetUrl: true, createdAt: true } },
+        generation: { select: { id: true, resultAssetUrl: true, resultPreviewAssetUrl: true, createdAt: true } },
         _count: { select: { likes: true } },
       },
     });

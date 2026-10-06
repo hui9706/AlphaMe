@@ -20,3 +20,4 @@
 @media(max-width:760px){.account-security-panel .form-grid{grid-template-columns:1fr}}
 .user-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}.reset-user-password{border:1px solid #efd5d6;border-radius:7px;padding:7px 9px;font-size:10px;background:#fff8f8;color:#b44f58;white-space:nowrap}.reset-user-password:hover{background:#fcebed}.reset-password-panel{max-width:1000px}.reset-password-panel .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:760px){.reset-password-panel .form-grid{grid-template-columns:1fr}.user-actions{justify-content:flex-start}}
+.status .failure-reason{display:block;max-width:360px;color:#9b4148;font-size:10px;line-height:1.45;white-space:normal;overflow-wrap:anywhere;margin-top:6px}

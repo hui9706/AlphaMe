@@ -34,6 +34,7 @@ import { PlazaService } from './plaza.service';
 import { ShareController } from './share.controller';
 import { ShareService } from './share.service';
 import { RewardRiskService } from './reward-risk.service';
+import { HomeController } from './home.controller';
 
 @Module({
   imports: [
@@ -52,7 +53,7 @@ import { RewardRiskService } from './reward-risk.service';
       useFactory: (config: ConfigService) => ({ secret: config.get('JWT_SECRET', 'development-only-secret') }),
     }),
   ],
-  controllers: [HealthController, AuthController, TemplatesController, GenerationsController, UploadsController, AssetsController, CoinController, CheckInController, PlazaController, ShareController, AdminController],
+  controllers: [HealthController, AuthController, TemplatesController, HomeController, GenerationsController, UploadsController, AssetsController, CoinController, CheckInController, PlazaController, ShareController, AdminController],
   providers: [PrismaService, AuthService, ZaloIdentityProvider, TemplatesService, CoinService, CheckInService, PlazaService, ShareService, RewardRiskService, GenerationsService, ApiKeyPool, SeedreamProvider, AuthGuard, StorageService, GenerationQueue, GenerationWorker, MaintenanceService, AdminGuard, AdminService, SecretsService, VolcengineService],
 })
 export class AppModule {}

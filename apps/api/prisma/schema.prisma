@@ -255,6 +255,7 @@ model Generation {
   status         GenerationStatus @default(QUEUED)
   sourceAssetUrl String
   resultAssetUrl String?
+  resultPreviewAssetUrl String?
   coinCost       Int
   errorCode      String?
   errorMessage   String?
@@ -308,6 +309,14 @@ model VolcengineConfig {
   secretKey  String?
   region     String   @default("cn-beijing")
   updatedAt  DateTime @updatedAt
+}
+
+model HomeHeroImages {
+  id        String   @id
+  leftUrl   String?  @db.Text
+  centerUrl String?  @db.Text
+  rightUrl  String?  @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 model ApiKey {

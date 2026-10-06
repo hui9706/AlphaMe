@@ -12,6 +12,7 @@ class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true })
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
 class VolcengineConfigDto { @IsOptional() @IsString() accessKey?: string; @IsOptional() @IsString() secretKey?: string; @IsOptional() @IsString() region?: string; }
 class TemplateCoverUploadDto { @IsString() @MinLength(20) dataUrl!: string; }
+class HomeHeroImagesDto { @IsOptional() @IsString() @MaxLength(2000) leftUrl?: string; @IsOptional() @IsString() @MaxLength(2000) centerUrl?: string; @IsOptional() @IsString() @MaxLength(2000) rightUrl?: string; }
 class StorageConfigDto {
   @IsString() provider!: string;
   @IsBoolean() enabled!: boolean;
@@ -66,6 +67,8 @@ export class AdminController {
   @Post('rewards/:id/revoke') @UseGuards(AdminGuard) revokeReward(@Param('id') id: string, @Body() body: RewardRevokeDto, @Req() request: { adminId?: string }) { return this.admin.revokeReward(id, request.adminId!, body.reason); }
   @Get('generations') @UseGuards(AdminGuard) generations(@Query('limit') limit?: string) { return this.admin.generations(Number(limit ?? 50)); }
   @Get('templates') @UseGuards(AdminGuard) templates() { return this.admin.templates(); }
+  @Get('home-hero-images') @UseGuards(AdminGuard) homeHeroImages() { return this.admin.homeHeroImages(); }
+  @Patch('home-hero-images') @UseGuards(AdminGuard) updateHomeHeroImages(@Body() body: HomeHeroImagesDto) { return this.admin.updateHomeHeroImages(body); }
   @Post('template-covers') @UseGuards(AdminGuard) uploadTemplateCover(@Body() body: TemplateCoverUploadDto) { return this.storage.saveTemplateCover(body.dataUrl); }
   @Post('templates') @UseGuards(AdminGuard) createTemplate(@Body() body: TemplateDto) { return this.admin.createTemplate(body); }
   @Patch('templates/order') @UseGuards(AdminGuard) reorderTemplates(@Body() body: TemplateReorderDto) { return this.admin.reorderTemplates(body.templateIds); }

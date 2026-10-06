@@ -2,8 +2,10 @@
   "app": {
     "title": "AlphaMe",
     "headerTitle": "AlphaMe",
-    "headerColor": "#080a42",
-    "headerTextColor": "white"
+    "headerColor": "#102e70",
+    "headerTextColor": "white",
+    "statusBar": "transparent",
+    "actionBarHidden": true
   },
   "listCSS": [],
   "listSyncJS": [],

@@ -13,7 +13,7 @@ export class ShareService {
   async create(userId: string, generationId: string) {
     const sharer = await this.prisma.user.findUnique({ where: { id: userId }, select: { zaloOpenId: true } });
     if (!sharer?.zaloOpenId) throw new ForbiddenException('Zalo login is required for friend sharing');
-    const generation = await this.prisma.generation.findFirst({ where: { id: generationId, userId, status: 'SUCCEEDED' }, select: { id: true, resultAssetUrl: true } });
+    const generation = await this.prisma.generation.findFirst({ where: { id: generationId, userId, status: 'SUCCEEDED' }, select: { id: true, resultAssetUrl: true, resultPreviewAssetUrl: true } });
     if (!generation?.resultAssetUrl) throw new ConflictException('Only successful generations can be shared');
     const share = await this.prisma.shareAttribution.create({ data: { shareToken: randomUUID(), generationId, sharerId: userId } });
     return { shareToken: share.shareToken, generationId: share.generationId };
