@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "pinyin-pro": "^3.29.4",
     "react": "latest",
     "react-dom": "latest",
     "typescript": "latest",
