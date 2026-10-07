@@ -253,6 +253,17 @@ model Template {
   updatedAt   DateTime     @updatedAt
 }
 
+model TemplateCategory {
+  id        String   @id @default(cuid())
+  nameZh    String
+  nameVi    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([nameZh, nameVi])
+  @@index([nameZh])
+}
+
 model Generation {
   id             String           @id @default(cuid())
   idempotencyKey String           @unique

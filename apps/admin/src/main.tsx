@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import * as api from './api';
-import type { AdminApiKey, AdminCoinAccount, AdminGeneration, AdminRiskEvent, AdminReward, AdminStats, AdminStorage, AdminTemplate, AdminUser, AdminWebpImage, AdminCoinRewardConfig } from './api';
+import type { AdminApiKey, AdminCoinAccount, AdminGeneration, AdminRiskEvent, AdminReward, AdminStats, AdminStorage, AdminTemplate, AdminTemplateCategory, AdminUser, AdminWebpImage, AdminCoinRewardConfig } from './api';
 
 const BRAND_ASSET_URL = `${import.meta.env.BASE_URL}brand.svg`;
 type Lang = 'zh' | 'vi';
@@ -73,6 +73,8 @@ function AccountSecurity({ t }: { t: typeof copy.zh }) {
 function Templates({ t }: { t: typeof copy.zh }) {
   const emptyForm = { slug: '', nameVi: '', nameZh: '', categoryVi: 'Chân dung', categoryZh: '人像风格', prompt: '', coverUrl: '', coinCost: 10, isCouple: false };
   const [items, setItems] = useState<AdminTemplate[]>([]);
+  const [categories, setCategories] = useState<AdminTemplateCategory[]>([]);
+  const [showCategories, setShowCategories] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -86,7 +88,8 @@ function Templates({ t }: { t: typeof copy.zh }) {
   const [coverOperationBusy, setCoverOperationBusy] = useState(false);
   const [coverOperationMessage, setCoverOperationMessage] = useState('');
   const load = () => api.getTemplates().then(setItems).catch((err) => setError(err.message));
-  useEffect(() => { void load(); }, []);
+  const loadCategories = () => api.getTemplateCategories().then(setCategories).catch((err) => setError(err.message));
+  useEffect(() => { void load(); void loadCategories(); }, []);
   const openCreate = () => { setEditingId(null); setForm(emptyForm); setError(''); setShowForm(true); };
   const openEdit = (item: AdminTemplate) => {
     setEditingId(item.id);
@@ -179,7 +182,8 @@ function Templates({ t }: { t: typeof copy.zh }) {
   };
   const filtered = items.filter((item) => filter === 'all' || (filter === 'enabled' ? item.enabled : !item.enabled));
   return <div className="content">
-    <PageHeader kicker="CONTENT WORKSPACE" title={t.templates} hint={t.promptHelp} action={<div className="template-header-actions"><button className="secondary-button" disabled={coverOperationBusy} onClick={() => void scanCovers()}>{coverOperationBusy ? '处理中…' : '检查并压缩旧图片'}</button><button className="primary-button" onClick={openCreate}>＋ {t.newTemplate}</button></div>} />
+    <PageHeader kicker="CONTENT WORKSPACE" title={t.templates} hint={t.promptHelp} action={<div className="template-header-actions"><button className="secondary-button" onClick={() => setShowCategories(true)}>{t === copy.zh ? '分类管理' : 'Quản lý danh mục'}</button><button className="secondary-button" disabled={coverOperationBusy} onClick={() => void scanCovers()}>{coverOperationBusy ? '处理中…' : '检查并压缩旧图片'}</button><button className="primary-button" onClick={openCreate}>＋ {t.newTemplate}</button></div>} />
+    {showCategories && <TemplateCategoryManager t={t} categories={categories} onClose={() => setShowCategories(false)} onChanged={() => { void loadCategories(); void load(); }} />}
     {coverScan && <section className="config-panel cover-migration-panel"><div className="config-heading"><div><span className="eyebrow">TEMPLATE COVER OPTIMIZATION</span><h2>现有模板图片</h2><p>目标最长边 1200px，WebP 质量 80。只替换成功且确实变小的图片，原图保留用于恢复。</p></div><button className="icon-button" onClick={() => setCoverScan(null)}>×</button></div><div className="cover-scan-summary"><span>可优化 <b>{coverScan.templates.filter((item) => item.status === 'ready').length}</b> 张</span><span>已识别资源预计 {formatBytes(coverScan.totalBeforeBytes)} → {formatBytes(coverScan.estimatedAfterBytes)}</span><button className="primary-button" disabled={coverOperationBusy || !coverScan.templates.some((item) => item.status === 'ready')} onClick={() => void optimizeCovers()}>{coverOperationBusy ? '处理中…' : '一键转换可优化图片'}</button></div><div className="cover-scan-list">{coverScan.templates.map((item) => <div key={item.id}><strong>{item.nameZh}</strong><span>{item.status === 'ready' ? '可优化' : item.status === 'optimized' ? '已优化（原图可恢复）' : item.status === 'already-small' ? '已足够小' : item.status === 'missing' ? '未设置图片' : item.status === 'unsupported' ? '非系统图片资源，跳过' : '读取失败'}</span><small>{item.beforeBytes == null ? '—' : `${formatBytes(item.beforeBytes)}${item.afterBytes != null && item.status === 'ready' ? ` → ${formatBytes(item.afterBytes)}` : ''}`}{item.error ? ` · ${item.error}` : ''}</small></div>)}</div></section>}
     {coverOperationMessage && <div className="admin-success">{coverOperationMessage}</div>}
     {showForm && <section className="config-panel">
@@ -189,8 +193,8 @@ function Templates({ t }: { t: typeof copy.zh }) {
           <label>{t.slug}<input value={form.slug} readOnly={Boolean(editingId)} onChange={(event) => setForm({ ...form, slug: event.target.value })} required placeholder="portrait-studio" /></label>
           <label>{t.nameVi}<input value={form.nameVi} onChange={(event) => setForm({ ...form, nameVi: event.target.value })} required /></label>
           <label>{t.nameZh}<input value={form.nameZh} onChange={(event) => setForm({ ...form, nameZh: event.target.value })} required /></label>
-          <label>{t.categoryVi}<input value={form.categoryVi} onChange={(event) => setForm({ ...form, categoryVi: event.target.value })} required placeholder="Chân dung" /></label>
-          <label>{t.categoryZh}<input value={form.categoryZh} onChange={(event) => setForm({ ...form, categoryZh: event.target.value })} required placeholder="人像风格" /></label>
+          <label>{t.categoryZh}<select required value={categories.find((category) => category.nameZh === form.categoryZh && category.nameVi === form.categoryVi)?.id ?? ''} onChange={(event) => { const category = categories.find((item) => item.id === event.target.value); if (category) setForm({ ...form, categoryZh: category.nameZh, categoryVi: category.nameVi }); }}><option value="" disabled>{categories.length ? (t === copy.zh ? '请选择中文分类' : 'Chọn danh mục tiếng Trung') : (t === copy.zh ? '请先在分类管理中新增分类' : 'Hãy thêm danh mục trước')}</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.nameZh}</option>)}</select></label>
+          <label>{t.categoryVi}<input value={form.categoryVi} readOnly required placeholder={t === copy.zh ? '选择中文分类后自动填写' : 'Tự động điền sau khi chọn danh mục tiếng Trung'} /></label>
           <label>风格显示图<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadCover(file); }} />{coverBusy && <small>正在上传图片…</small>}{form.coverUrl && <img className="cover-preview" src={form.coverUrl} alt="风格显示图预览" />}</label>
           <label>{t.cost}<input type="number" min="0" value={form.coinCost} onChange={(event) => setForm({ ...form, coinCost: Number(event.target.value) })} required /></label>
           <label className="template-couple-toggle"><input type="checkbox" checked={form.isCouple} onChange={(event) => setForm({ ...form, isCouple: event.target.checked, coinCost: event.target.checked ? 20 : form.coinCost })} /> 双人模式（用户上传两张照片，固定扣费 20 Coin）</label>
@@ -204,6 +208,33 @@ function Templates({ t }: { t: typeof copy.zh }) {
     <div className="list-toolbar"><div className="filter-tabs"><button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t.all} <b>{items.length}</b></button><button className={filter === 'enabled' ? 'active' : ''} onClick={() => setFilter('enabled')}>{t.enabled} <b>{items.filter((x) => x.enabled).length}</b></button><button className={filter === 'disabled' ? 'active' : ''} onClick={() => setFilter('disabled')}>{t.disabled} <b>{items.filter((x) => !x.enabled).length}</b></button></div><span className="list-count">{filter === 'all' ? '拖动左侧手柄调整顺序 · ' : ''}{filtered.length} {t.records}</span></div>
     <section className="panel data-list">{filtered.length ? filtered.map((item) => { const index = items.findIndex((entry) => entry.id === item.id); return <div className={`template-row${draggedId === item.id ? ' dragging' : ''}${dropTargetId === item.id ? ' drop-target' : ''}`} key={item.id} onDragOver={(event) => { if (draggedId) event.preventDefault(); }} onDragEnter={() => { if (draggedId && draggedId !== item.id) setDropTargetId(item.id); }} onDrop={(event) => dropTemplate(event, item.id)}><button type="button" className="drag-handle" draggable={!reordering && filter === 'all'} aria-label={`拖动调整${item.nameZh}排序，也可用上下方向键调整`} title="拖动排序" onDragStart={(event) => { setDraggedId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id); }} onDragEnd={() => { setDraggedId(''); setDropTargetId(''); }} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); void moveTemplate(index, -1); } else if (event.key === 'ArrowDown') { event.preventDefault(); void moveTemplate(index, 1); } }}>⠿</button><div className="template-cover">{item.coverUrl ? <img src={item.coverUrl} /> : <span>✧</span>}</div><div className="template-main"><div><strong>{item.nameZh}</strong><span className="slug-chip">{item.slug}</span></div><small>{item.nameVi} · 分类：{item.categoryZh} / {item.categoryVi}</small><p><span>模板提示词</span> · {item.prompt.slice(0, 72)}{item.prompt.length > 72 ? '…' : ''}</p></div><div className="template-meta"><b>{item.coinCost} <small>Coin</small></b><span>排序 {index + 1} · {item.enabled ? t.active : t.paused}</span></div><div className="template-actions"><button className="edit-button" onClick={() => openEdit(item)}>{t.edit}</button>{item.coverOriginalUrl && <button className="edit-button" disabled={coverOperationBusy} onClick={() => void rollbackCover(item)}>恢复原图</button>}<button className={`status-button ${item.enabled ? 'enabled' : 'disabled'}`} onClick={() => api.toggleTemplate(item.id, !item.enabled).then(load)}>{item.enabled ? t.pause : t.resume}</button></div></div>; }) : <EmptyState title={t.noTemplates} hint={t.noTemplatesHint} />}</section>
   </div>;
+}
+function TemplateCategoryManager({ t, categories, onClose, onChanged }: { t: typeof copy.zh; categories: AdminTemplateCategory[]; onClose: () => void; onChanged: () => void }) {
+  const zh = t === copy.zh;
+  const [nameZh, setNameZh] = useState('');
+  const [nameVi, setNameVi] = useState('');
+  const [editingId, setEditingId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const clear = () => { setNameZh(''); setNameVi(''); setEditingId(''); setError(''); };
+  const edit = (category: AdminTemplateCategory) => { setEditingId(category.id); setNameZh(category.nameZh); setNameVi(category.nameVi); setError(''); };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); setBusy(true); setError('');
+    try {
+      if (editingId) await api.updateTemplateCategory(editingId, { nameZh: nameZh.trim(), nameVi: nameVi.trim() });
+      else await api.createTemplateCategory({ nameZh: nameZh.trim(), nameVi: nameVi.trim() });
+      clear(); onChanged();
+    } catch (err) { setError(err instanceof Error ? err.message : (zh ? '保存失败' : 'Không thể lưu')); }
+    finally { setBusy(false); }
+  };
+  const remove = async (category: AdminTemplateCategory) => {
+    if (!window.confirm(zh ? `删除分类「${category.nameZh} / ${category.nameVi}」？` : `Xóa danh mục “${category.nameZh} / ${category.nameVi}”?`)) return;
+    setBusy(true); setError('');
+    try { await api.deleteTemplateCategory(category.id); onChanged(); }
+    catch (err) { setError(err instanceof Error ? err.message : (zh ? '删除失败' : 'Không thể xóa')); }
+    finally { setBusy(false); }
+  };
+  return <div className="category-manager-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="category-manager-dialog" role="dialog" aria-modal="true" aria-labelledby="category-manager-title"><div className="config-heading"><div><span className="eyebrow">TEMPLATE CATEGORIES</span><h2 id="category-manager-title">{zh ? '分类管理' : 'Quản lý danh mục'}</h2><p>{zh ? '维护中越双语分类。修改分类名称会同步更新关联模板。' : 'Quản lý danh mục tiếng Trung và tiếng Việt. Đổi tên sẽ cập nhật các mẫu đang dùng.'}</p></div><button className="icon-button" onClick={onClose}>×</button></div><form className="category-manager-form" onSubmit={(event) => void submit(event)}><label>{zh ? '中文分类' : 'Danh mục tiếng Trung'}<input value={nameZh} onChange={(event) => setNameZh(event.target.value)} maxLength={80} required /></label><label>{zh ? '越南文分类' : 'Danh mục tiếng Việt'}<input value={nameVi} onChange={(event) => setNameVi(event.target.value)} maxLength={80} required /></label><button className="primary-button" disabled={busy}>{busy ? (zh ? '保存中…' : 'Đang lưu…') : editingId ? (zh ? '保存修改' : 'Lưu thay đổi') : (zh ? '新增分类' : 'Thêm danh mục')}</button>{editingId && <button type="button" className="secondary-button" onClick={clear}>{zh ? '取消编辑' : 'Hủy chỉnh sửa'}</button>}</form>{error && <div className="admin-error">{error}</div>}<div className="category-manager-list">{categories.map((category) => <div className="category-manager-row" key={category.id}><div><strong>{category.nameZh}</strong><span>{category.nameVi}</span></div><button className="edit-button" disabled={busy} onClick={() => edit(category)}>{zh ? '编辑' : 'Sửa'}</button><button className="danger-button" disabled={busy} onClick={() => void remove(category)}>{zh ? '删除' : 'Xóa'}</button></div>)}{!categories.length && <EmptyState title={zh ? '还没有分类' : 'Chưa có danh mục'} hint={zh ? '新增双语分类后，可在模板表单中选择。' : 'Thêm danh mục song ngữ để chọn trong biểu mẫu mẫu.'} />}</div></section></div>;
 }
 function Generations({ t }: { t: typeof copy.zh }) { const [items, setItems] = useState<AdminGeneration[]>([]); const [query, setQuery] = useState(''); useEffect(() => { void api.getGenerations().then(setItems); }, []); const filtered = useMemo(() => items.filter((item) => `${item.id} ${item.user.displayName ?? ''} ${item.template.nameZh} ${item.errorCode ?? ''} ${item.errorMessage ?? ''}`.toLowerCase().includes(query.toLowerCase())), [items, query]); return <div className="content"><PageHeader kicker="AI PIPELINE" title={t.generations} hint={t.hint} /><div className="search-row"><div className="search-box">⌕<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`${t.search} ${t.generations}`} /></div><span>{filtered.length} {t.records}</span></div><section className="panel data-list wide-list"><div className="table-head"><span>{t.user}</span><span>{t.template}</span><span>{t.created}</span><span>{t.costShort}</span><span>{t.status}</span></div>{filtered.map((item) => <div className="table-row" key={item.id}><div className="user-cell"><i>{(item.user.displayName || 'Z').slice(0, 1).toUpperCase()}</i><span><b>{item.user.displayName || 'Zalo User'}</b><small>{item.id.slice(0, 18)}…</small></span></div><span>{item.template.nameZh}<small>{item.template.nameVi}</small></span><span>{new Date(item.createdAt).toLocaleString()}</span><span>{item.coinCost} Coin</span><span className={`status ${item.status.toLowerCase()}`}>{statusLabel(item.status, t)}{item.status === 'FAILED' && <small className="failure-reason" title={item.errorMessage || item.errorCode || ''}>{t.failureReason}: {item.errorMessage || item.errorCode || '—'}{item.errorCode ? ` · ${item.errorCode}` : ''}</small>}</span></div>)}{!filtered.length && <EmptyState title={t.noTasks} hint={t.noTasks} />}</section></div>; }
 function Users({ t }: { t: typeof copy.zh }) {

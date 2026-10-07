@@ -4,6 +4,7 @@ const TOKEN_KEY = 'alphame_admin_access_token';
 export type AdminSession = { accessToken: string; admin: { id: string; username: string; role: string } };
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
 export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coverUrl?: string; coverOriginalUrl?: string | null; coinCost: number; isCouple: boolean; sortOrder: number; enabled: boolean };
+export type AdminTemplateCategory = { id: string; nameZh: string; nameVi: string };
 export type TemplateCoverScan = { templates: Array<{ id: string; nameZh: string; coverUrl: string | null; status: 'missing' | 'unsupported' | 'optimized' | 'ready' | 'already-small' | 'failed'; beforeBytes: number | null; afterBytes: number | null; error?: string }>; totalBeforeBytes: number; estimatedAfterBytes: number };
 export type AdminHomeHeroImages = { leftUrl: string | null; centerUrl: string | null; rightUrl: string | null };
 export type AdminCoinRewardConfig = { newUserAmount: number; inviteeBonusAmount: number; inviterAmount: number };
@@ -42,6 +43,10 @@ export async function login(username: string, password: string) { const session 
 export const changeAdminPassword = (currentPassword: string, newPassword: string) => request<{ ok: true }>('/admin/auth/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
 export const getStats = () => request<AdminStats>('/admin/stats');
 export const getTemplates = () => request<AdminTemplate[]>('/admin/templates');
+export const getTemplateCategories = () => request<AdminTemplateCategory[]>('/admin/template-categories');
+export const createTemplateCategory = (body: { nameZh: string; nameVi: string }) => request<AdminTemplateCategory>('/admin/template-categories', { method: 'POST', body: JSON.stringify(body) });
+export const updateTemplateCategory = (id: string, body: { nameZh: string; nameVi: string }) => request<AdminTemplateCategory>(`/admin/template-categories/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const deleteTemplateCategory = (id: string) => request<{ ok: boolean }>(`/admin/template-categories/${id}`, { method: 'DELETE' });
 export const scanTemplateCovers = () => request<TemplateCoverScan>('/admin/templates/covers/scan');
 export const optimizeTemplateCovers = (templateIds: string[]) => request<{ results: Array<{ id: string; ok: boolean; beforeBytes?: number; afterBytes?: number; error?: string }> }>('/admin/templates/covers/optimize', { method: 'POST', body: JSON.stringify({ templateIds }) });
 export const rollbackTemplateCover = (id: string) => request<AdminTemplate>(`/admin/templates/${id}/cover/rollback`, { method: 'POST' });

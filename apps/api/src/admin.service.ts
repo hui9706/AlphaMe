@@ -108,6 +108,34 @@ export class AdminService {
   reviewRiskEvent(id: string, status: 'REVIEWED' | 'CLEARED', adminUserId: string) { return this.prisma.rewardRiskEvent.update({ where: { id }, data: { status, reviewedByAdminId: adminUserId, reviewedAt: new Date() }, include: { user: { select: { id: true, displayName: true, zaloOpenId: true } }, reviewedByAdmin: { select: { id: true, username: true } } } }); }
   generations(limit = 50) { return this.prisma.generation.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), include: { user: { select: { displayName: true, zaloOpenId: true } }, template: { select: { slug: true, nameVi: true, nameZh: true } } } }); }
   templates() { return this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }); }
+  templateCategories() { return this.prisma.templateCategory.findMany({ orderBy: [{ nameZh: 'asc' }, { nameVi: 'asc' }] }); }
+  async createTemplateCategory(nameZh: string, nameVi: string) {
+    const nextZh = nameZh.trim(); const nextVi = nameVi.trim();
+    if (!nextZh || !nextVi) throw new BadRequestException('Both Chinese and Vietnamese category names are required');
+    try { return await this.prisma.templateCategory.create({ data: { nameZh: nextZh, nameVi: nextVi } }); }
+    catch (error) { if (AdminService.isUniqueConflict(error)) throw new ConflictException('This category already exists'); throw error; }
+  }
+  async updateTemplateCategory(id: string, nameZh: string, nameVi: string) {
+    const current = await this.prisma.templateCategory.findUnique({ where: { id } });
+    if (!current) throw new NotFoundException('Category not found');
+    const nextZh = nameZh.trim(); const nextVi = nameVi.trim();
+    if (!nextZh || !nextVi) throw new BadRequestException('Both Chinese and Vietnamese category names are required');
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.templateCategory.update({ where: { id }, data: { nameZh: nextZh, nameVi: nextVi } });
+        await tx.template.updateMany({ where: { categoryZh: current.nameZh, categoryVi: current.nameVi }, data: { categoryZh: nextZh, categoryVi: nextVi } });
+        return updated;
+      });
+    } catch (error) { if (AdminService.isUniqueConflict(error)) throw new ConflictException('This category already exists'); throw error; }
+  }
+  async deleteTemplateCategory(id: string) {
+    const category = await this.prisma.templateCategory.findUnique({ where: { id } });
+    if (!category) throw new NotFoundException('Category not found');
+    const used = await this.prisma.template.count({ where: { categoryZh: category.nameZh, categoryVi: category.nameVi } });
+    if (used) throw new ConflictException('This category is assigned to templates');
+    await this.prisma.templateCategory.delete({ where: { id } });
+    return { ok: true };
+  }
   async homeHeroImages() { return await this.prisma.homeHeroImages.findUnique({ where: { id: 'default' }, select: { leftUrl: true, centerUrl: true, rightUrl: true } }) ?? { leftUrl: '', centerUrl: '', rightUrl: '' }; }
 
   async coinRewardConfig() { return this.prisma.coinRewardConfig.upsert({ where: { id: 'default' }, create: { id: 'default' }, update: {} }); }
@@ -135,5 +163,6 @@ export class AdminService {
   updateApiKey(id: string, data: { priority?: number; status?: 'ACTIVE' | 'PAUSED' }) { return this.prisma.apiKey.update({ where: { id }, data }); }
 
   static hashPassword(password: string) { const salt = randomBytes(16).toString('hex'); return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`; }
+  private static isUniqueConflict(error: unknown) { return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002'; }
   private verifyPassword(password: string, stored: string) { const [salt, hash] = stored.split(':'); if (!salt || !hash) return false; const actual = scryptSync(password, salt, 64); const expected = Buffer.from(hash, 'hex'); return actual.length === expected.length && timingSafeEqual(actual, expected); }
 }

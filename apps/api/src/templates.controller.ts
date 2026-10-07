@@ -5,4 +5,5 @@ import { TemplatesService } from './templates.service';
 export class TemplatesController {
   constructor(private readonly templates: TemplatesService) {}
   @Get() list() { return this.templates.list(); }
+  @Get('categories') categories() { return this.templates.categories(); }
 }

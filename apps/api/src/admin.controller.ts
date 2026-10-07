@@ -8,6 +8,7 @@ import { VolcengineService } from './volcengine.service';
 class LoginDto { @IsString() @MinLength(1) username!: string; @IsString() @MinLength(8) password!: string; }
 class TemplateDto { @IsString() @MinLength(1) slug!: string; @IsString() @MinLength(1) nameVi!: string; @IsString() @MinLength(1) nameZh!: string; @IsString() @MinLength(1) categoryVi!: string; @IsString() @MinLength(1) categoryZh!: string; @IsString() @MinLength(1) prompt!: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsBoolean() isCouple?: boolean; @IsOptional() @IsString() coverUrl?: string; }
 class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional() @IsString() nameZh?: string; @IsOptional() @IsString() categoryVi?: string; @IsOptional() @IsString() categoryZh?: string; @IsOptional() @IsString() prompt?: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsBoolean() isCouple?: boolean; @IsOptional() @IsString() coverUrl?: string; @IsOptional() @IsBoolean() enabled?: boolean; }
+class TemplateCategoryDto { @IsString() @MinLength(1) @MaxLength(80) nameZh!: string; @IsString() @MinLength(1) @MaxLength(80) nameVi!: string; }
 class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true }) templateIds!: string[]; }
 class TemplateCoverOptimizeDto { @IsArray() @IsString({ each: true }) templateIds!: string[]; }
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
@@ -70,6 +71,10 @@ export class AdminController {
   @Post('rewards/:id/revoke') @UseGuards(AdminGuard) revokeReward(@Param('id') id: string, @Body() body: RewardRevokeDto, @Req() request: { adminId?: string }) { return this.admin.revokeReward(id, request.adminId!, body.reason); }
   @Get('generations') @UseGuards(AdminGuard) generations(@Query('limit') limit?: string) { return this.admin.generations(Number(limit ?? 50)); }
   @Get('templates') @UseGuards(AdminGuard) templates() { return this.admin.templates(); }
+  @Get('template-categories') @UseGuards(AdminGuard) templateCategories() { return this.admin.templateCategories(); }
+  @Post('template-categories') @UseGuards(AdminGuard) createTemplateCategory(@Body() body: TemplateCategoryDto) { return this.admin.createTemplateCategory(body.nameZh, body.nameVi); }
+  @Patch('template-categories/:id') @UseGuards(AdminGuard) updateTemplateCategory(@Param('id') id: string, @Body() body: TemplateCategoryDto) { return this.admin.updateTemplateCategory(id, body.nameZh, body.nameVi); }
+  @Delete('template-categories/:id') @UseGuards(AdminGuard) deleteTemplateCategory(@Param('id') id: string) { return this.admin.deleteTemplateCategory(id); }
   @Get('templates/covers/scan') @UseGuards(AdminGuard) scanTemplateCovers() { return this.storage.scanTemplateCovers(); }
   @Post('templates/covers/optimize') @UseGuards(AdminGuard) optimizeTemplateCovers(@Body() body: TemplateCoverOptimizeDto) { return this.storage.optimizeTemplateCovers(body.templateIds); }
   @Post('templates/:id/cover/rollback') @UseGuards(AdminGuard) rollbackTemplateCover(@Param('id') id: string) { return this.storage.rollbackTemplateCover(id); }
