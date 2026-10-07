@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 import { GenerationsService } from './generations.service';
 import { AuthGuard } from './auth.guard';
 
 class CreateGenerationDto {
   @IsString() @MinLength(1) templateId!: string;
   @IsString() @MinLength(1) sourceAssetUrl!: string;
+  @IsOptional() @IsString() @MinLength(1) sourceAssetUrl2?: string;
 }
 
 @Controller('generations')

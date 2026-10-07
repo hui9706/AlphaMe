@@ -22,14 +22,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export type Session = { accessToken: string; user: { id: string; username?: string | null; displayName?: string | null; avatarUrl?: string | null; coinAccount?: { available: number; frozen: number } | null; isAdmin?: boolean; zaloLinked?: boolean } };
-export type Template = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; updatedAt?: string };
+export type Template = { id: string; slug: string; nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coverUrl?: string; coinCost: number; isCouple?: boolean; updatedAt?: string };
 export type HomeHeroImages = { leftUrl?: string | null; centerUrl?: string | null; rightUrl?: string | null };
 export type Generation = { id: string; status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'; sourceAssetUrl: string; resultAssetUrl?: string; resultPreviewAssetUrl?: string; coinCost: number; createdAt: string };
 export type PlazaWork = { id: string; publishedAt: string; user: { id: string; displayName?: string | null; avatarUrl?: string | null }; generation: { id: string; resultAssetUrl?: string | null; resultPreviewAssetUrl?: string | null; createdAt: string }; likes: number; liked: boolean };
 export type CoinLedgerEntry = { id: string; type: string; amount: number; availableAfter: number; frozenAfter: number; generationId?: string | null; note?: string | null; createdAt: string; rewardType?: string | null; rewardStatus?: string | null; rewardSourceType?: string | null; revokeReason?: string | null };
 export type CheckInStatus = { date: string; checkedIn: boolean; rewardAmount: number };
 
-export async function loginWithZalo(): Promise<Session> {
+export async function loginWithZalo(shareToken?: string): Promise<Session> {
   const accessToken = await getAccessToken();
   if (!accessToken) throw new Error('ZALO_ACCESS_TOKEN_EMPTY');
   let profile: { displayName?: string; avatarUrl?: string } = {};
@@ -39,7 +39,7 @@ export async function loginWithZalo(): Promise<Session> {
   } catch {
     // Login remains available when the user declines Zalo profile permission.
   }
-  const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ accessToken, ...profile }) });
+  const session = await request<Session>('/auth/zalo', { method: 'POST', body: JSON.stringify({ accessToken, ...profile, ...(shareToken ? { shareToken } : {}) }) });
   setStoredAccessToken(session.accessToken);
   return session;
 }
@@ -50,10 +50,10 @@ export async function linkZaloAccount() {
   return request<Session['user']>('/auth/link-zalo', { method: 'POST', body: JSON.stringify({ accessToken }) });
 }
 
-export async function loginWithCredentials(username: string, password: string, register = false): Promise<Session> {
+export async function loginWithCredentials(username: string, password: string, register = false, shareToken?: string): Promise<Session> {
   const session = await request<Session>(register ? '/auth/register' : '/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, ...(register && shareToken ? { shareToken } : {}) }),
   });
   setStoredAccessToken(session.accessToken);
   return session;
@@ -94,7 +94,7 @@ export function publishPlazaWork(generationId: string) { return request<{ id: st
 export function unpublishPlazaWork(id: string) { return request<{ id: string; unpublished: boolean }>('/plaza/works/' + id, { method: 'DELETE' }); }
 export function likePlazaWork(id: string) { return request<{ plazaWorkId: string; liked: boolean; likes: number }>('/plaza/works/' + id + '/like', { method: 'POST' }); }
 export function unlikePlazaWork(id: string) { return request<{ plazaWorkId: string; liked: boolean; likes: number }>('/plaza/works/' + id + '/like', { method: 'DELETE' }); }
-export function createShare(generationId: string) { return request<{ shareToken: string; generationId: string }>('/shares', { method: 'POST', body: JSON.stringify({ generationId }) }); }
-export function openShare(shareToken: string, accessToken: string, contextType: 'USER_CHAT' | 'GROUP_CHAT' | '') { return request<{ opened: boolean; rewarded: boolean; alreadyOpened?: boolean }>('/shares/' + encodeURIComponent(shareToken) + '/open', { method: 'POST', body: JSON.stringify({ accessToken, contextType }) }); }
+export function createShare() { return request<{ shareToken: string }>('/shares', { method: 'POST', body: JSON.stringify({}) }); }
+export function openShare(shareToken: string) { return request<{ opened: boolean; rewarded: boolean; alreadyOpened?: boolean }>('/shares/' + encodeURIComponent(shareToken) + '/open', { method: 'POST', body: JSON.stringify({}) }); }
 export function uploadImage(dataUrl: string, kind: 'input' | 'avatar' = 'input') { return request<{ id: string; publicUrl: string }>('/uploads/image', { method: 'POST', body: JSON.stringify({ dataUrl, kind }) }); }
-export function createGeneration(templateId: string, sourceAssetUrl: string) { return request<Generation>('/generations', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ templateId, sourceAssetUrl }) }); }
+export function createGeneration(templateId: string, sourceAssetUrl: string, sourceAssetUrl2?: string) { return request<Generation>('/generations', { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ templateId, sourceAssetUrl, ...(sourceAssetUrl2 ? { sourceAssetUrl2 } : {}) }) }); }

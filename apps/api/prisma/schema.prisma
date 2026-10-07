@@ -26,6 +26,8 @@ enum LedgerType {
 }
 
 enum RewardType {
+  NEW_USER
+  INVITEE_BONUS
   DAILY_CHECK_IN
   SHARE_OPEN
   PLAZA_LIKE
@@ -166,12 +168,12 @@ model PlazaLike {
 model ShareAttribution {
   id          String   @id @default(cuid())
   shareToken  String   @unique
-  generationId String
+  generationId String?
   sharerId    String
   friendId    String?
   openedAt    DateTime?
   reward      RewardRecord?
-  generation  Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  generation  Generation? @relation(fields: [generationId], references: [id], onDelete: Cascade)
   sharer      User     @relation("ShareSender", fields: [sharerId], references: [id], onDelete: Cascade)
   friend      User?    @relation("ShareFriend", fields: [friendId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
@@ -237,10 +239,13 @@ model Template {
   slug        String       @unique
   nameVi      String
   nameZh      String
+  categoryVi  String       @default("Chân dung")
+  categoryZh  String       @default("人像风格")
   prompt      String   @db.Text
   coverUrl    String?
   coverOriginalUrl String?
   coinCost    Int          @default(10)
+  isCouple    Boolean      @default(false)
   sortOrder   Int          @default(0)
   enabled     Boolean      @default(true)
   generations Generation[]
@@ -255,6 +260,7 @@ model Generation {
   templateId     String
   status         GenerationStatus @default(QUEUED)
   sourceAssetUrl String
+  sourceAssetUrl2 String?
   resultAssetUrl String?
   resultPreviewAssetUrl String?
   coinCost       Int
@@ -318,6 +324,14 @@ model HomeHeroImages {
   centerUrl String?  @db.Text
   rightUrl  String?  @db.Text
   updatedAt DateTime @updatedAt
+}
+
+model CoinRewardConfig {
+  id                 String   @id @default("default")
+  newUserAmount      Int      @default(10)
+  inviteeBonusAmount Int      @default(10)
+  inviterAmount      Int      @default(10)
+  updatedAt          DateTime @updatedAt
 }
 
 model ApiKey {

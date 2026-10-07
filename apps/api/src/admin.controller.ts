@@ -6,14 +6,15 @@ import { StorageService } from './storage.service';
 import { VolcengineService } from './volcengine.service';
 
 class LoginDto { @IsString() @MinLength(1) username!: string; @IsString() @MinLength(8) password!: string; }
-class TemplateDto { @IsString() @MinLength(1) slug!: string; @IsString() @MinLength(1) nameVi!: string; @IsString() @MinLength(1) nameZh!: string; @IsString() @MinLength(1) prompt!: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; }
-class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional() @IsString() nameZh?: string; @IsOptional() @IsString() prompt?: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; @IsOptional() @IsBoolean() enabled?: boolean; }
+class TemplateDto { @IsString() @MinLength(1) slug!: string; @IsString() @MinLength(1) nameVi!: string; @IsString() @MinLength(1) nameZh!: string; @IsString() @MinLength(1) categoryVi!: string; @IsString() @MinLength(1) categoryZh!: string; @IsString() @MinLength(1) prompt!: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsBoolean() isCouple?: boolean; @IsOptional() @IsString() coverUrl?: string; }
+class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional() @IsString() nameZh?: string; @IsOptional() @IsString() categoryVi?: string; @IsOptional() @IsString() categoryZh?: string; @IsOptional() @IsString() prompt?: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsBoolean() isCouple?: boolean; @IsOptional() @IsString() coverUrl?: string; @IsOptional() @IsBoolean() enabled?: boolean; }
 class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true }) templateIds!: string[]; }
 class TemplateCoverOptimizeDto { @IsArray() @IsString({ each: true }) templateIds!: string[]; }
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
 class VolcengineConfigDto { @IsOptional() @IsString() accessKey?: string; @IsOptional() @IsString() secretKey?: string; @IsOptional() @IsString() region?: string; }
 class TemplateCoverUploadDto { @IsString() @MinLength(20) dataUrl!: string; }
 class HomeHeroImagesDto { @IsOptional() @IsString() @MaxLength(2000) leftUrl?: string; @IsOptional() @IsString() @MaxLength(2000) centerUrl?: string; @IsOptional() @IsString() @MaxLength(2000) rightUrl?: string; }
+class CoinRewardConfigDto { @IsInt() @Min(0) @Max(1000000) newUserAmount!: number; @IsInt() @Min(0) @Max(1000000) inviteeBonusAmount!: number; @IsInt() @Min(0) @Max(1000000) inviterAmount!: number; }
 class StorageConfigDto {
   @IsString() provider!: string;
   @IsBoolean() enabled!: boolean;
@@ -73,6 +74,9 @@ export class AdminController {
   @Post('templates/covers/optimize') @UseGuards(AdminGuard) optimizeTemplateCovers(@Body() body: TemplateCoverOptimizeDto) { return this.storage.optimizeTemplateCovers(body.templateIds); }
   @Post('templates/:id/cover/rollback') @UseGuards(AdminGuard) rollbackTemplateCover(@Param('id') id: string) { return this.storage.rollbackTemplateCover(id); }
   @Get('home-hero-images') @UseGuards(AdminGuard) homeHeroImages() { return this.admin.homeHeroImages(); }
+  @Get('coin-reward-config') @UseGuards(AdminGuard) coinRewardConfig() { return this.admin.coinRewardConfig(); }
+  @Patch('coin-reward-config') @UseGuards(AdminGuard) updateCoinRewardConfig(@Body() body: CoinRewardConfigDto) { return this.admin.updateCoinRewardConfig(body); }
+  @Get('home-hero-images/library') @UseGuards(AdminGuard) homeHeroImageLibrary() { return this.admin.webpTemplateCoverLibrary(); }
   @Patch('home-hero-images') @UseGuards(AdminGuard) updateHomeHeroImages(@Body() body: HomeHeroImagesDto) { return this.admin.updateHomeHeroImages(body); }
   @Post('template-covers') @UseGuards(AdminGuard) uploadTemplateCover(@Body() body: TemplateCoverUploadDto) { return this.storage.saveTemplateCover(body.dataUrl); }
   @Post('templates') @UseGuards(AdminGuard) createTemplate(@Body() body: TemplateDto) { return this.admin.createTemplate(body); }

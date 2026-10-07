@@ -1,0 +1,2 @@
+ALTER TABLE `Template` ADD COLUMN `isCouple` BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE `Generation` ADD COLUMN `sourceAssetUrl2` TEXT NULL;

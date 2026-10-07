@@ -17,6 +17,11 @@ class ZaloLoginDto {
   @IsString()
   @MaxLength(1000)
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  shareToken?: string;
 }
 
 class LinkZaloDto {
@@ -36,6 +41,11 @@ class CredentialsDto {
   @MinLength(8)
   @MaxLength(128)
   password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  shareToken?: string;
 }
 
 class ProfileDto {
@@ -55,14 +65,14 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('zalo')
-  login(@Body() body: ZaloLoginDto) { return this.auth.loginWithZalo(body.accessToken, { displayName: body.displayName, avatarUrl: body.avatarUrl }); }
+  login(@Body() body: ZaloLoginDto) { return this.auth.loginWithZalo(body.accessToken, { displayName: body.displayName, avatarUrl: body.avatarUrl, shareToken: body.shareToken }); }
 
   @Post('link-zalo')
   @UseGuards(AuthGuard)
   linkZalo(@Body() body: LinkZaloDto, @Req() request: { userId?: string }) { return this.auth.linkZaloAccount(request.userId!, body.accessToken); }
 
   @Post('register')
-  register(@Body() body: CredentialsDto) { return this.auth.register(body.username, body.password); }
+  register(@Body() body: CredentialsDto) { return this.auth.register(body.username, body.password, body.shareToken); }
 
   @Post('login')
   loginWithCredentials(@Body() body: CredentialsDto) { return this.auth.loginWithCredentials(body.username, body.password); }

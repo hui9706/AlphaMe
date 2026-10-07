@@ -3,21 +3,23 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from './prisma.service';
 import { ZaloIdentityProvider } from './zalo.identity';
+import { CoinService } from './coin.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly zalo: ZaloIdentityProvider) {}
+  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly zalo: ZaloIdentityProvider, private readonly coin: CoinService) {}
 
-  async loginWithZalo(accessToken: string, profile?: { displayName?: string; avatarUrl?: string }) {
+  async loginWithZalo(accessToken: string, profile?: { displayName?: string; avatarUrl?: string; shareToken?: string }) {
     const identity = process.env.ZALO_AUTH_MODE === 'stub' ? { openId: 'dev:local-user' } : await this.zalo.getIdentity(accessToken);
     const zaloOpenId = identity.openId;
     const displayName = profile?.displayName?.trim() || identity.displayName;
     const avatarUrl = profile?.avatarUrl || identity.avatarUrl;
-    const user = await this.prisma.user.upsert({
-      where: { zaloOpenId },
-      update: { ...(displayName ? { displayName } : {}), ...(avatarUrl ? { avatarUrl } : {}) },
-      create: { zaloOpenId, displayName, avatarUrl, coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:${zaloOpenId}` } } } } },
-      select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+    const user = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({ where: { zaloOpenId }, select: { id: true } });
+      if (existing) return tx.user.update({ where: { id: existing.id }, data: { ...(displayName ? { displayName } : {}), ...(avatarUrl ? { avatarUrl } : {}) }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
+      const created = await tx.user.create({ data: { zaloOpenId, displayName, avatarUrl, coinAccount: { create: { available: 0 } } }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
+      await this.grantSignupRewards(tx, created.id, profile?.shareToken);
+      return tx.user.findUniqueOrThrow({ where: { id: created.id }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
     });
     return this.createSession(user);
   }
@@ -43,17 +45,13 @@ export class AuthService {
     }
   }
 
-  async register(username: string, password: string) {
+  async register(username: string, password: string, shareToken?: string) {
     const normalizedUsername = username.toLowerCase();
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          username: normalizedUsername,
-          passwordHash: this.hashPassword(password),
-          displayName: normalizedUsername,
-          coinAccount: { create: { available: 10, ledger: { create: { type: 'INITIAL_GRANT', amount: 10, availableAfter: 10, frozenAfter: 0, idempotencyKey: `initial:account:${normalizedUsername}` } } } },
-        },
-        select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true },
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({ data: { username: normalizedUsername, passwordHash: this.hashPassword(password), displayName: normalizedUsername, coinAccount: { create: { available: 0 } } }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
+        await this.grantSignupRewards(tx, created.id, shareToken);
+        return tx.user.findUniqueOrThrow({ where: { id: created.id }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, isAdmin: true, coinAccount: true } });
       });
       return this.createSession(user);
     } catch (error) {
@@ -62,6 +60,17 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  private async grantSignupRewards(tx: import('@prisma/client').Prisma.TransactionClient, userId: string, shareToken?: string) {
+    const config = await tx.coinRewardConfig.upsert({ where: { id: 'default' }, create: { id: 'default' }, update: {} });
+    await this.coin.grantRewardInTransaction(tx, { userId, type: 'NEW_USER', amount: config.newUserAmount, idempotencyKey: `new-user:${userId}`, sourceType: 'NEW_USER', sourceId: userId, note: '新用户注册奖励' });
+    if (!shareToken) return;
+    const share = await tx.shareAttribution.findUnique({ where: { shareToken } });
+    if (!share || share.sharerId === userId || share.friendId) return;
+    const opened = await tx.shareAttribution.update({ where: { id: share.id }, data: { friendId: userId, openedAt: new Date() } });
+    if (config.inviteeBonusAmount > 0) await this.coin.grantRewardInTransaction(tx, { userId, type: 'INVITEE_BONUS', amount: config.inviteeBonusAmount, idempotencyKey: `invitee-bonus:${userId}`, sourceType: 'INVITEE_BONUS', sourceId: opened.id, note: '受邀注册额外奖励' });
+    if (config.inviterAmount > 0) await this.coin.grantRewardInTransaction(tx, { userId: share.sharerId, type: 'SHARE_OPEN', amount: config.inviterAmount, idempotencyKey: `share-open:${share.sharerId}:${userId}`, sourceType: 'SHARE_OPEN', sourceId: opened.id, note: '好友受邀注册奖励', rewardRelations: { shareId: opened.id } });
   }
 
   async loginWithCredentials(username: string, password: string) {

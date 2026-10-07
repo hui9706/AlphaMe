@@ -4,7 +4,7 @@ import { PrismaService } from './prisma.service';
 
 type RewardGrantInput = {
   userId: string;
-  type: 'DAILY_CHECK_IN' | 'SHARE_OPEN' | 'PLAZA_LIKE';
+  type: 'NEW_USER' | 'INVITEE_BONUS' | 'DAILY_CHECK_IN' | 'SHARE_OPEN' | 'PLAZA_LIKE';
   amount: number;
   idempotencyKey: string;
   sourceType: string;

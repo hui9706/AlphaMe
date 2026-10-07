@@ -6,7 +6,7 @@ import { ApiKeyPool } from './api-key.pool';
 export class SeedreamProvider {
   constructor(private readonly keys: ApiKeyPool, private readonly config: ConfigService) {}
 
-  async createImage(input: { prompt: string; sourceAssetUrl: string }) {
+  async createImage(input: { prompt: string; sourceAssetUrl: string | string[] }) {
     const endpoint = this.config.get('SEEDREAM_ENDPOINT', 'https://ark.cn-beijing.volces.com/api/v3/images/generations');
     const model = this.config.get('SEEDREAM_MODEL');
     if (!model) throw new ServiceUnavailableException('SEEDREAM_MODEL is not configured');

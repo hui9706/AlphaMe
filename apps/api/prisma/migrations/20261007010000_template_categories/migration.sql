@@ -1,0 +1,3 @@
+ALTER TABLE `Template`
+  ADD COLUMN `categoryVi` VARCHAR(191) NOT NULL DEFAULT 'Chân dung',
+  ADD COLUMN `categoryZh` VARCHAR(191) NOT NULL DEFAULT '人像风格';

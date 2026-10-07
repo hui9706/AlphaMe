@@ -47,7 +47,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .account-link-row > span:first-child { display: grid; gap: 5px; }
 .account-link-row b { font-size: 13px; }
 .account-link-row small { color: var(--muted); font-size: 11px; }
-.account-linked-note { margin: 12px 0 20px; color: var(--muted); font-size: 12px; }
 .account-chevron { color: var(--cyan); font-size: 21px; }
 .account-login { width: 100%; margin-top: 14px; }
 .account-logout { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: #a4464c; font-weight: 700; cursor: pointer; }
@@ -231,7 +230,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .account-intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 
 /* Immersive AI portrait home, with the Zalo status area kept clear. */
-.home-canvas { overflow: visible; padding: 0 0 calc(82px + env(safe-area-inset-bottom, 0px)); background: #fbfaf8; }
+.home-canvas { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior-y: none; padding: 0; background: #fbfaf8; }
 .home-canvas:before { content: ''; position: absolute; inset: 0 0 auto; z-index: 0; height: 760px; background: radial-gradient(ellipse at 50% 70%, rgba(13,101,219,.8), transparent 56%), linear-gradient(145deg, #06459f 0%, #063679 54%, #032b68 100%); }
 .home-canvas:after { display: none; }
 .home-topbar { z-index: 2; min-height: 74px; padding: calc(env(safe-area-inset-top, 0px) + 12px) 24px 10px; }
@@ -322,7 +321,11 @@ button { -webkit-tap-highlight-color: transparent; }
 .picker-section-heading { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 12px; }
 .picker-section-heading strong { color: #222943; font-size: 14px; font-weight: 700; }
 .picker-section-heading span { color: #9ba2b0; font-size: 10px; font-weight: 600; }
-.picker-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px 12px; }
+.picker-category-tabs { display: flex; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding: 1px 1px 4px; scrollbar-width: none; }
+.picker-category-tabs::-webkit-scrollbar { display: none; }
+.picker-category-tabs button { flex: 0 0 auto; min-height: 32px; padding: 0 13px; border: 1px solid rgba(26,38,68,.1); border-radius: 999px; background: #f4f3f1; color: #69738a; font-size: 11px; font-weight: 600; }
+.picker-category-tabs button.active { border-color: rgba(23,97,221,.58); background: #fff; color: #1761dd; box-shadow: 0 3px 10px rgba(23,97,221,.1); }
+.picker-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px 10px; }
 .picker-card { position: relative; padding: 6px 6px 11px; border: 1px solid rgba(26,38,68,.09); border-radius: 19px; background: #f4f3f1; box-shadow: 0 5px 15px rgba(25,36,61,.035); }
 .picker-card .style-art { aspect-ratio: 1 / 1.04; border-radius: 14px; background: #e8e8e5; }
 .picker-card .style-cover { transition: transform .35s ease; }
@@ -333,7 +336,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .picker-info p { display: block; overflow: hidden; margin-top: 4px; color: #9096a3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 380px) {
   .style-picker { padding-right: 0; padding-left: 0; }
-  .picker-grid { gap: 11px 9px; }
+  .picker-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 11px 8px; }
   .picker-card { border-radius: 16px; }
   .picker-card .style-art { border-radius: 12px; }
   .picker-info h3 { font-size: 12px; }
@@ -375,8 +378,10 @@ button { -webkit-tap-highlight-color: transparent; }
 .account-coin-link i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--yellow); color: white; font-style: normal; font-size: 11px; }
 .account-coin-link small { color: var(--muted); font-size: 10px; }
 .account-coin-link b { margin-left: 4px; color: var(--cyan); font-size: 16px; }
-.account-logout { min-height: 42px; margin-top: 18px; border: 0; color: #a4464c; font-size: 11px; font-weight: 700; }
-.account-logout span { margin-right: 6px; font-size: 16px; vertical-align: -1px; }
+.account-logout { min-height: 50px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 18px; padding: 0 16px; border: 1px solid rgba(164,70,76,.12); border-radius: 16px; background: linear-gradient(105deg, rgba(255,244,242,.92), rgba(255,250,248,.75)); color: #a4464c; font-size: 12px; font-weight: 700; letter-spacing: .01em; transition: background .18s ease, border-color .18s ease, transform .18s ease; }
+.account-logout span { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; border-radius: 9px; background: rgba(164,70,76,.09); color: #a4464c; font-size: 15px; line-height: 1; }
+.account-logout:hover { border-color: rgba(164,70,76,.2); background: #fff1ef; transform: translateY(-1px); }
+.account-logout:active { transform: translateY(0); }
 @media (max-width: 360px) { .account-actions { gap: 8px; } .account-action { padding: 11px 9px; } .account-progress { width: 42%; } }
 
 /* Guest profile: welcome artwork and one Zalo authorization action. */
@@ -440,3 +445,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .works-empty-state p { max-width: 270px; margin: 0 auto; }
 .works-empty-state .works-primary { max-width: 290px; margin: 17px auto 0; background: #1764df; box-shadow: 0 8px 18px rgba(23,100,223,.18); }
 @media (max-width:390px) { .works-gate-art { height: 176px; } .works-gate-copy { padding-right: 16px; padding-left: 16px; } .works-empty-state { padding-right: 15px; padding-left: 15px; } }
+
+.couple-upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.couple-upload-grid .upload-zone { min-height: 190px; padding: 18px 10px; }

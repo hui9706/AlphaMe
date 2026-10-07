@@ -22,7 +22,10 @@ export class GenerationWorker implements OnModuleInit, OnModuleDestroy {
     if (!generation || generation.status === 'SUCCEEDED') return;
     await this.prisma.generation.update({ where: { id: generation.id }, data: { status: 'PROCESSING', errorCode: null, errorMessage: null } });
     try {
-      const result = await this.seedream.createImage({ prompt: generation.template.prompt, sourceAssetUrl: generation.sourceAssetUrl });
+      const prompt = generation.template.isCouple
+        ? `${generation.template.prompt}\n\n参考图标注：输入参考图1对应提示词中的“图1（左边女生）”，输入参考图2对应“图2（右边女生）”。按顺序保持两位人物的身份与五官分别贴合各自参考照片，不要交换、混合或遗漏人物。`
+        : generation.template.prompt;
+      const result = await this.seedream.createImage({ prompt, sourceAssetUrl: generation.sourceAssetUrl2 ? [generation.sourceAssetUrl, generation.sourceAssetUrl2] : generation.sourceAssetUrl });
       const assets = await this.storage.importGenerated(generation.userId, result.url, Number(this.config.get('GENERATED_RETENTION_DAYS', 30)));
       await this.coin.charge(generation.userId, generation.coinCost, generation.id);
       await this.prisma.generation.update({ where: { id: generation.id }, data: { status: 'SUCCEEDED', resultAssetUrl: assets.original.publicUrl, resultPreviewAssetUrl: assets.preview.publicUrl } });

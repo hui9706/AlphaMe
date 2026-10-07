@@ -109,15 +109,23 @@ export class AdminService {
   generations(limit = 50) { return this.prisma.generation.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 100), include: { user: { select: { displayName: true, zaloOpenId: true } }, template: { select: { slug: true, nameVi: true, nameZh: true } } } }); }
   templates() { return this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }); }
   async homeHeroImages() { return await this.prisma.homeHeroImages.findUnique({ where: { id: 'default' }, select: { leftUrl: true, centerUrl: true, rightUrl: true } }) ?? { leftUrl: '', centerUrl: '', rightUrl: '' }; }
+
+  async coinRewardConfig() { return this.prisma.coinRewardConfig.upsert({ where: { id: 'default' }, create: { id: 'default' }, update: {} }); }
+
+  updateCoinRewardConfig(data: { newUserAmount: number; inviteeBonusAmount: number; inviterAmount: number }) {
+    return this.prisma.coinRewardConfig.upsert({ where: { id: 'default' }, create: { id: 'default', ...data }, update: data });
+  }
+  webpTemplateCoverLibrary() { return this.prisma.asset.findMany({ where: { kind: 'template-cover', mimeType: 'image/webp', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, publicUrl: true, byteSize: true, createdAt: true } }); }
   updateHomeHeroImages(data: { leftUrl?: string; centerUrl?: string; rightUrl?: string }) {
     const values = { leftUrl: data.leftUrl?.trim() || null, centerUrl: data.centerUrl?.trim() || null, rightUrl: data.rightUrl?.trim() || null };
     return this.prisma.homeHeroImages.upsert({ where: { id: 'default' }, create: { id: 'default', ...values }, update: values, select: { leftUrl: true, centerUrl: true, rightUrl: true } });
   }
-  createTemplate(data: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost?: number; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.coinCost ?? 10 } }); }
-  async updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean; sortOrder: number }>) {
+  createTemplate(data: { slug: string; nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coinCost?: number; isCouple?: boolean; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.isCouple ? 20 : (data.coinCost ?? 10) } }); }
+  async updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coinCost: number; isCouple: boolean; coverUrl: string; enabled: boolean; sortOrder: number }>) {
     const current = data.coverUrl !== undefined ? await this.prisma.template.findUnique({ where: { id }, select: { coverUrl: true } }) : null;
     const coverChanged = current && current.coverUrl !== data.coverUrl;
-    return this.prisma.template.update({ where: { id }, data: { ...data, ...(coverChanged ? { coverOriginalUrl: null } : {}) } });
+    const updated = { ...data, ...(data.isCouple === true ? { coinCost: 20 } : {}), ...(coverChanged ? { coverOriginalUrl: null } : {}) };
+    return this.prisma.template.update({ where: { id }, data: updated });
   }
   async reorderTemplates(templateIds: string[]) {
     return this.prisma.$transaction(templateIds.map((id, index) => this.prisma.template.update({ where: { id }, data: { sortOrder: index } })));

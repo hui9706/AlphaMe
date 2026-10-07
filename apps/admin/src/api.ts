@@ -3,9 +3,11 @@ const TOKEN_KEY = 'alphame_admin_access_token';
 
 export type AdminSession = { accessToken: string; admin: { id: string; username: string; role: string } };
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
-export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coverOriginalUrl?: string | null; coinCost: number; sortOrder: number; enabled: boolean };
+export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coverUrl?: string; coverOriginalUrl?: string | null; coinCost: number; isCouple: boolean; sortOrder: number; enabled: boolean };
 export type TemplateCoverScan = { templates: Array<{ id: string; nameZh: string; coverUrl: string | null; status: 'missing' | 'unsupported' | 'optimized' | 'ready' | 'already-small' | 'failed'; beforeBytes: number | null; afterBytes: number | null; error?: string }>; totalBeforeBytes: number; estimatedAfterBytes: number };
 export type AdminHomeHeroImages = { leftUrl: string | null; centerUrl: string | null; rightUrl: string | null };
+export type AdminCoinRewardConfig = { newUserAmount: number; inviteeBonusAmount: number; inviterAmount: number };
+export type AdminWebpImage = { id: string; publicUrl: string; byteSize: number; createdAt: string };
 export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; errorCode?: string | null; errorMessage?: string | null; createdAt: string; user: { displayName?: string | null; zaloOpenId?: string | null }; template: { slug: string; nameVi: string; nameZh: string } };
 export type AdminUser = { id: string; username?: string | null; zaloOpenId?: string | null; displayName?: string | null; avatarUrl?: string | null; language: string; isAdmin: boolean; createdAt: string; coinAccount?: { available: number; frozen: number } | null };
 export type AdminCoinAccount = { id: string; zaloOpenId?: string | null; displayName?: string | null; coinAccount?: { available: number; frozen: number; updatedAt: string; ledger: AdminLedgerEntry[] } | null };
@@ -44,6 +46,9 @@ export const scanTemplateCovers = () => request<TemplateCoverScan>('/admin/templ
 export const optimizeTemplateCovers = (templateIds: string[]) => request<{ results: Array<{ id: string; ok: boolean; beforeBytes?: number; afterBytes?: number; error?: string }> }>('/admin/templates/covers/optimize', { method: 'POST', body: JSON.stringify({ templateIds }) });
 export const rollbackTemplateCover = (id: string) => request<AdminTemplate>(`/admin/templates/${id}/cover/rollback`, { method: 'POST' });
 export const getHomeHeroImages = () => request<AdminHomeHeroImages>('/admin/home-hero-images');
+export const getCoinRewardConfig = () => request<AdminCoinRewardConfig>('/admin/coin-reward-config');
+export const updateCoinRewardConfig = (body: AdminCoinRewardConfig) => request<AdminCoinRewardConfig>('/admin/coin-reward-config', { method: 'PATCH', body: JSON.stringify(body) });
+export const getWebpImageLibrary = () => request<AdminWebpImage[]>('/admin/home-hero-images/library');
 export const updateHomeHeroImages = (body: { leftUrl: string; centerUrl: string; rightUrl: string }) => request<AdminHomeHeroImages>('/admin/home-hero-images', { method: 'PATCH', body: JSON.stringify(body) });
 export const getGenerations = () => request<AdminGeneration[]>('/admin/generations');
 export const getUsers = () => request<AdminUser[]>('/admin/users');
@@ -58,9 +63,9 @@ export const revokeReward = (rewardId: string, reason: string) => request(`/admi
 export const getRiskEvents = (status?: string) => request<AdminRiskEvent[]>(`/admin/risk-events?${new URLSearchParams(status ? { status } : {}).toString()}`);
 export const reviewRiskEvent = (id: string, status: 'REVIEWED' | 'CLEARED') => request<AdminRiskEvent>(`/admin/risk-events/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 export const getApiKeys = () => request<AdminApiKey[]>('/admin/api-keys');
-export const uploadTemplateCover = (dataUrl: string) => request<{ id: string; publicUrl: string }>('/admin/template-covers', { method: 'POST', body: JSON.stringify({ dataUrl }) });
-export const createTemplate = (body: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl?: string }) => request<AdminTemplate>('/admin/templates', { method: 'POST', body: JSON.stringify(body) });
-export const updateTemplate = (id: string, body: { nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl?: string }) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+export const uploadTemplateCover = (dataUrl: string) => request<{ id: string; publicUrl: string; byteSize: number; createdAt: string }>('/admin/template-covers', { method: 'POST', body: JSON.stringify({ dataUrl }) });
+export const createTemplate = (body: { slug: string; nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coinCost: number; isCouple: boolean; coverUrl?: string }) => request<AdminTemplate>('/admin/templates', { method: 'POST', body: JSON.stringify(body) });
+export const updateTemplate = (id: string, body: { nameVi: string; nameZh: string; categoryVi: string; categoryZh: string; prompt: string; coinCost: number; isCouple: boolean; coverUrl?: string }) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
 export const reorderTemplates = (templateIds: string[]) => request<AdminTemplate[]>('/admin/templates/order', { method: 'PATCH', body: JSON.stringify({ templateIds }) });
 export const toggleTemplate = (id: string, enabled: boolean) => request<AdminTemplate>(`/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const createApiKey = (body: { label: string; value: string; priority: number }) => request<AdminApiKey>('/admin/api-keys', { method: 'POST', body: JSON.stringify(body) });
