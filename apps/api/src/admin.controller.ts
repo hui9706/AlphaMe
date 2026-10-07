@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
@@ -58,6 +58,7 @@ export class AdminController {
   @Get('users') @UseGuards(AdminGuard) users(@Query('limit') limit?: string) { return this.admin.users(Number(limit ?? 50)); }
   @Post('users') @UseGuards(AdminGuard) createUser(@Body() body: CreateUserDto) { return this.admin.createUser(body); }
   @Patch('users/:id/password') @UseGuards(AdminGuard) resetUserPassword(@Param('id') id: string, @Body() body: ResetUserPasswordDto) { return this.admin.resetUserPassword(id, body.password); }
+  @Delete('users/:id') @UseGuards(AdminGuard) async deleteUser(@Param('id') id: string) { await this.storage.deleteUserAssets(id); return this.admin.deleteUser(id); }
   @Patch('users/:id/admin') @UseGuards(AdminGuard) setUserAdminStatus(@Param('id') id: string, @Body() body: UserAdminStatusDto) { return this.admin.setUserAdminStatus(id, body.isAdmin); }
   @Get('users/:id/coins') @UseGuards(AdminGuard) coinAccount(@Param('id') id: string, @Query('limit') limit?: string) { return this.admin.coinAccount(id, Number(limit ?? 100)); }
   @Post('users/:id/coins/adjust') @UseGuards(AdminGuard) adjustCoin(@Param('id') id: string, @Body() body: CoinAdjustmentDto, @Req() request: { adminId?: string }) { return this.admin.adjustCoin(id, body.amount, body.note, body.idempotencyKey, request.adminId!); }

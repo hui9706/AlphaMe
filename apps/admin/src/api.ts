@@ -45,6 +45,7 @@ export const getGenerations = () => request<AdminGeneration[]>('/admin/generatio
 export const getUsers = () => request<AdminUser[]>('/admin/users');
 export const createUser = (body: { username: string; password: string; displayName?: string; language: 'vi' | 'zh'; initialCoin: number }) => request<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(body) });
 export const resetUserPassword = (userId: string, password: string) => request<{ id: string; username: string; displayName: string | null }>(`/admin/users/${userId}/password`, { method: 'PATCH', body: JSON.stringify({ password }) });
+export const deleteUser = (userId: string) => request<{ id: string; username: string | null; displayName: string | null }>(`/admin/users/${userId}`, { method: 'DELETE' });
 export const setUserAdminStatus = (userId: string, isAdmin: boolean) => request<AdminUser>(`/admin/users/${userId}/admin`, { method: 'PATCH', body: JSON.stringify({ isAdmin }) });
 export const getCoinAccount = (userId: string) => request<AdminCoinAccount>(`/admin/users/${userId}/coins`);
 export const adjustCoin = (userId: string, body: { amount: number; note: string; idempotencyKey: string }) => request('/admin/users/' + userId + '/coins/adjust', { method: 'POST', body: JSON.stringify(body) });

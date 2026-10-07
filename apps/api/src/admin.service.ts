@@ -58,6 +58,21 @@ export class AdminService {
       select: { id: true, username: true, displayName: true },
     });
   }
+  async deleteUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, coinAccount: { select: { id: true } } } });
+    if (!user) throw new NotFoundException('User not found');
+    await this.prisma.$transaction(async (tx) => {
+      // Generation rows use RESTRICT so remove their ledger references before deleting them.
+      if (user.coinAccount) await tx.coinLedger.deleteMany({ where: { accountId: user.coinAccount.id } });
+      await tx.rewardRecord.deleteMany({ where: { userId } });
+      await tx.shareAttribution.deleteMany({ where: { sharerId: userId } });
+      await tx.plazaLike.deleteMany({ where: { userId } });
+      await tx.plazaWork.deleteMany({ where: { userId } });
+      await tx.generation.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+    return { id: user.id, username: user.username, displayName: user.displayName };
+  }
   setUserAdminStatus(userId: string, isAdmin: boolean) { return this.prisma.user.update({ where: { id: userId }, data: { isAdmin }, select: { id: true, username: true, zaloOpenId: true, displayName: true, avatarUrl: true, language: true, isAdmin: true, createdAt: true, coinAccount: true } }); }
   async coinAccount(userId: string, limit = 100) {
     const user = await this.prisma.user.findUnique({

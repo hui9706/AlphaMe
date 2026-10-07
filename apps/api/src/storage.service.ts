@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 import { SecretsService } from './secrets.service';
@@ -80,6 +80,25 @@ export class StorageService {
     if (!asset || (asset.expiresAt && asset.expiresAt.getTime() <= Date.now())) return null;
     if (asset.storageProvider === 'qiniu') return { asset, url: await this.getQiniuUrl(asset.storageKey) };
     return { asset, path: join(this.root, asset.storageKey) };
+  }
+
+  async deleteUserAssets(userId: string) {
+    const assets = await this.prisma.asset.findMany({ where: { userId }, select: { id: true, storageKey: true, storageProvider: true } });
+    for (const asset of assets) {
+      if (asset.storageProvider === 'local') {
+        await unlink(join(this.root, asset.storageKey)).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'ENOENT') throw error; });
+      } else if (asset.storageProvider === 'qiniu') {
+        const config = await this.getStorageConfig();
+        if (!config?.qiniuAccessKey || !config.qiniuSecretKey || !config.qiniuBucket) throw new Error('Qiniu deletion credentials are unavailable');
+        const accessKey = this.secrets.decrypt(config.qiniuAccessKey);
+        const secretKey = this.secrets.decrypt(config.qiniuSecretKey);
+        const entry = Buffer.from(`${config.qiniuBucket}:${asset.storageKey}`).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const path = `/delete/${entry}`;
+        const authorization = `QBox ${accessKey}:${this.sign(secretKey, `${path}\n`)}`;
+        const response = await fetch(`https://rs.qiniu.com${path}`, { method: 'POST', headers: { Authorization: authorization } });
+        if (!response.ok && response.status !== 612) throw new Error(`Qiniu asset deletion failed (${response.status})`);
+      }
+    }
   }
 
   async getStorageConfig() { return this.prisma.storageConfig.findUnique({ where: { id: 'default' } }); }
