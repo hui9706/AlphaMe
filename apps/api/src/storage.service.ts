@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 import { SecretsService } from './secrets.service';
@@ -41,6 +41,63 @@ export class StorageService {
       throw new BadRequestException('无法识别图片，请上传有效的 JPEG、PNG 或 WebP 图片');
     }
     return this.saveBuffer(undefined, optimized, 'image/webp', 'template-cover');
+  }
+
+  async scanTemplateCovers() {
+    const templates = await this.prisma.template.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const rows = await Promise.all(templates.map(async (template) => {
+      if (!template.coverUrl) return { id: template.id, nameZh: template.nameZh, coverUrl: null, status: 'missing' as const, beforeBytes: 0, afterBytes: null };
+      const asset = await this.prisma.asset.findFirst({ where: { publicUrl: template.coverUrl, kind: 'template-cover' } });
+      if (!asset) return { id: template.id, nameZh: template.nameZh, coverUrl: template.coverUrl, status: 'unsupported' as const, beforeBytes: null, afterBytes: null };
+      if (template.coverOriginalUrl) return { id: template.id, nameZh: template.nameZh, coverUrl: template.coverUrl, status: 'optimized' as const, beforeBytes: asset.byteSize, afterBytes: asset.byteSize };
+      try {
+        const source = await this.readTemplateCover(asset);
+        const optimized = await sharp(source).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80, effort: 4 }).toBuffer();
+        return { id: template.id, nameZh: template.nameZh, coverUrl: template.coverUrl, status: optimized.length < asset.byteSize ? 'ready' as const : 'already-small' as const, beforeBytes: asset.byteSize, afterBytes: optimized.length };
+      } catch (error) {
+        return { id: template.id, nameZh: template.nameZh, coverUrl: template.coverUrl, status: 'failed' as const, beforeBytes: asset.byteSize, afterBytes: null, error: error instanceof Error ? error.message : '图片读取失败' };
+      }
+    }));
+    return { templates: rows, totalBeforeBytes: rows.reduce((sum, row) => sum + (row.beforeBytes ?? 0), 0), estimatedAfterBytes: rows.reduce((sum, row) => sum + (row.afterBytes ?? row.beforeBytes ?? 0), 0) };
+  }
+
+  async optimizeTemplateCovers(templateIds: string[]) {
+    const results = [];
+    for (const id of [...new Set(templateIds)]) {
+      const template = await this.prisma.template.findUnique({ where: { id } });
+      if (!template?.coverUrl) { results.push({ id, ok: false, error: '模板或封面不存在' }); continue; }
+      if (template.coverOriginalUrl) { results.push({ id, ok: false, error: '该模板已有原图备份' }); continue; }
+      const asset = await this.prisma.asset.findFirst({ where: { publicUrl: template.coverUrl, kind: 'template-cover' } });
+      if (!asset) { results.push({ id, ok: false, error: '封面不是系统管理的图片资源，已跳过' }); continue; }
+      try {
+        const source = await this.readTemplateCover(asset);
+        const optimized = await sharp(source).rotate().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 80, effort: 4 }).toBuffer();
+        if (optimized.length >= asset.byteSize) { results.push({ id, ok: false, error: '转换后没有变小，保留原图' }); continue; }
+        const next = await this.saveBuffer(undefined, optimized, 'image/webp', 'template-cover');
+        const changed = await this.prisma.template.updateMany({ where: { id, coverUrl: template.coverUrl, coverOriginalUrl: null }, data: { coverOriginalUrl: template.coverUrl, coverUrl: next.publicUrl } });
+        if (!changed.count) throw new Error('模板图片已变化，请重新扫描后再操作');
+        results.push({ id, ok: true, beforeBytes: asset.byteSize, afterBytes: optimized.length });
+      } catch (error) {
+        results.push({ id, ok: false, error: error instanceof Error ? error.message : '转换失败' });
+      }
+    }
+    return { results };
+  }
+
+  async rollbackTemplateCover(id: string) {
+    const template = await this.prisma.template.findUnique({ where: { id } });
+    if (!template?.coverOriginalUrl) throw new BadRequestException('该模板没有可恢复的原图');
+    return this.prisma.template.update({ where: { id }, data: { coverUrl: template.coverOriginalUrl, coverOriginalUrl: null } });
+  }
+
+  private async readTemplateCover(asset: { storageKey: string; storageProvider: string }) {
+    if (asset.storageProvider === 'local') return readFile(join(this.root, asset.storageKey));
+    if (asset.storageProvider !== 'qiniu') throw new Error('暂不支持该图片存储类型');
+    const response = await fetch(await this.getQiniuUrl(asset.storageKey));
+    if (!response.ok) throw new Error(`读取七牛图片失败（HTTP ${response.status}）`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) throw new Error('图片为空或超过 15MB 限制');
+    return buffer;
   }
 
   async importRemote(userId: string, url: string, kind: 'generated', retentionDays: number) {

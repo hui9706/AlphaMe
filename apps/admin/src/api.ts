@@ -3,7 +3,8 @@ const TOKEN_KEY = 'alphame_admin_access_token';
 
 export type AdminSession = { accessToken: string; admin: { id: string; username: string; role: string } };
 export type AdminStats = { users: number; generations: number; succeeded: number; processing: number; coinCharged: number };
-export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coinCost: number; sortOrder: number; enabled: boolean };
+export type AdminTemplate = { id: string; slug: string; nameVi: string; nameZh: string; prompt: string; coverUrl?: string; coverOriginalUrl?: string | null; coinCost: number; sortOrder: number; enabled: boolean };
+export type TemplateCoverScan = { templates: Array<{ id: string; nameZh: string; coverUrl: string | null; status: 'missing' | 'unsupported' | 'optimized' | 'ready' | 'already-small' | 'failed'; beforeBytes: number | null; afterBytes: number | null; error?: string }>; totalBeforeBytes: number; estimatedAfterBytes: number };
 export type AdminHomeHeroImages = { leftUrl: string | null; centerUrl: string | null; rightUrl: string | null };
 export type AdminGeneration = { id: string; status: string; coinCost: number; sourceAssetUrl: string; resultAssetUrl?: string; errorCode?: string | null; errorMessage?: string | null; createdAt: string; user: { displayName?: string | null; zaloOpenId?: string | null }; template: { slug: string; nameVi: string; nameZh: string } };
 export type AdminUser = { id: string; username?: string | null; zaloOpenId?: string | null; displayName?: string | null; avatarUrl?: string | null; language: string; isAdmin: boolean; createdAt: string; coinAccount?: { available: number; frozen: number } | null };
@@ -39,6 +40,9 @@ export async function login(username: string, password: string) { const session 
 export const changeAdminPassword = (currentPassword: string, newPassword: string) => request<{ ok: true }>('/admin/auth/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
 export const getStats = () => request<AdminStats>('/admin/stats');
 export const getTemplates = () => request<AdminTemplate[]>('/admin/templates');
+export const scanTemplateCovers = () => request<TemplateCoverScan>('/admin/templates/covers/scan');
+export const optimizeTemplateCovers = (templateIds: string[]) => request<{ results: Array<{ id: string; ok: boolean; beforeBytes?: number; afterBytes?: number; error?: string }> }>('/admin/templates/covers/optimize', { method: 'POST', body: JSON.stringify({ templateIds }) });
+export const rollbackTemplateCover = (id: string) => request<AdminTemplate>(`/admin/templates/${id}/cover/rollback`, { method: 'POST' });
 export const getHomeHeroImages = () => request<AdminHomeHeroImages>('/admin/home-hero-images');
 export const updateHomeHeroImages = (body: { leftUrl: string; centerUrl: string; rightUrl: string }) => request<AdminHomeHeroImages>('/admin/home-hero-images', { method: 'PATCH', body: JSON.stringify(body) });
 export const getGenerations = () => request<AdminGeneration[]>('/admin/generations');

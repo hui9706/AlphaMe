@@ -114,7 +114,11 @@ export class AdminService {
     return this.prisma.homeHeroImages.upsert({ where: { id: 'default' }, create: { id: 'default', ...values }, update: values, select: { leftUrl: true, centerUrl: true, rightUrl: true } });
   }
   createTemplate(data: { slug: string; nameVi: string; nameZh: string; prompt: string; coinCost?: number; coverUrl?: string }) { return this.prisma.template.create({ data: { ...data, coinCost: data.coinCost ?? 10 } }); }
-  updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean; sortOrder: number }>) { return this.prisma.template.update({ where: { id }, data }); }
+  async updateTemplate(id: string, data: Partial<{ nameVi: string; nameZh: string; prompt: string; coinCost: number; coverUrl: string; enabled: boolean; sortOrder: number }>) {
+    const current = data.coverUrl !== undefined ? await this.prisma.template.findUnique({ where: { id }, select: { coverUrl: true } }) : null;
+    const coverChanged = current && current.coverUrl !== data.coverUrl;
+    return this.prisma.template.update({ where: { id }, data: { ...data, ...(coverChanged ? { coverOriginalUrl: null } : {}) } });
+  }
   async reorderTemplates(templateIds: string[]) {
     return this.prisma.$transaction(templateIds.map((id, index) => this.prisma.template.update({ where: { id }, data: { sortOrder: index } })));
   }

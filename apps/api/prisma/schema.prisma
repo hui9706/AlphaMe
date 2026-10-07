@@ -239,6 +239,7 @@ model Template {
   nameZh      String
   prompt      String   @db.Text
   coverUrl    String?
+  coverOriginalUrl String?
   coinCost    Int          @default(10)
   sortOrder   Int          @default(0)
   enabled     Boolean      @default(true)

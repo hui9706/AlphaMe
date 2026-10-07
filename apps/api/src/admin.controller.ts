@@ -9,6 +9,7 @@ class LoginDto { @IsString() @MinLength(1) username!: string; @IsString() @MinLe
 class TemplateDto { @IsString() @MinLength(1) slug!: string; @IsString() @MinLength(1) nameVi!: string; @IsString() @MinLength(1) nameZh!: string; @IsString() @MinLength(1) prompt!: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; }
 class TemplatePatchDto { @IsOptional() @IsString() nameVi?: string; @IsOptional() @IsString() nameZh?: string; @IsOptional() @IsString() prompt?: string; @IsOptional() @IsInt() @Min(0) coinCost?: number; @IsOptional() @IsString() coverUrl?: string; @IsOptional() @IsBoolean() enabled?: boolean; }
 class TemplateReorderDto { @IsArray() @ArrayNotEmpty() @IsString({ each: true }) templateIds!: string[]; }
+class TemplateCoverOptimizeDto { @IsArray() @IsString({ each: true }) templateIds!: string[]; }
 class ApiKeyDto { @IsString() @MinLength(1) label!: string; @IsString() @MinLength(1) value!: string; @IsOptional() @IsInt() @Min(0) priority?: number; }
 class VolcengineConfigDto { @IsOptional() @IsString() accessKey?: string; @IsOptional() @IsString() secretKey?: string; @IsOptional() @IsString() region?: string; }
 class TemplateCoverUploadDto { @IsString() @MinLength(20) dataUrl!: string; }
@@ -68,6 +69,9 @@ export class AdminController {
   @Post('rewards/:id/revoke') @UseGuards(AdminGuard) revokeReward(@Param('id') id: string, @Body() body: RewardRevokeDto, @Req() request: { adminId?: string }) { return this.admin.revokeReward(id, request.adminId!, body.reason); }
   @Get('generations') @UseGuards(AdminGuard) generations(@Query('limit') limit?: string) { return this.admin.generations(Number(limit ?? 50)); }
   @Get('templates') @UseGuards(AdminGuard) templates() { return this.admin.templates(); }
+  @Get('templates/covers/scan') @UseGuards(AdminGuard) scanTemplateCovers() { return this.storage.scanTemplateCovers(); }
+  @Post('templates/covers/optimize') @UseGuards(AdminGuard) optimizeTemplateCovers(@Body() body: TemplateCoverOptimizeDto) { return this.storage.optimizeTemplateCovers(body.templateIds); }
+  @Post('templates/:id/cover/rollback') @UseGuards(AdminGuard) rollbackTemplateCover(@Param('id') id: string) { return this.storage.rollbackTemplateCover(id); }
   @Get('home-hero-images') @UseGuards(AdminGuard) homeHeroImages() { return this.admin.homeHeroImages(); }
   @Patch('home-hero-images') @UseGuards(AdminGuard) updateHomeHeroImages(@Body() body: HomeHeroImagesDto) { return this.admin.updateHomeHeroImages(body); }
   @Post('template-covers') @UseGuards(AdminGuard) uploadTemplateCover(@Body() body: TemplateCoverUploadDto) { return this.storage.saveTemplateCover(body.dataUrl); }
